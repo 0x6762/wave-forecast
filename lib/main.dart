@@ -230,42 +230,56 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
           const SizedBox(height: 8),
           SizedBox(
             height: 120,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: _forecast!.hourlyConditions.length > 24
-                  ? 24
-                  : _forecast!.hourlyConditions.length,
-              itemBuilder: (context, index) {
-                final condition = _forecast!.hourlyConditions[index];
-                return Card(
-                  margin: const EdgeInsets.only(right: 8),
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          '${condition.timestamp.hour}:00',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 4),
-                        const Icon(Icons.waves, size: 20),
-                        Text('${condition.waveHeight.toStringAsFixed(1)}m'),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
+            child: Builder(
+              builder: (context) {
+                // Filter to show only future hours
+                final now = DateTime.now();
+                final futureConditions = _forecast!.hourlyConditions
+                    .where((c) => c.timestamp.isAfter(now))
+                    .take(24)
+                    .toList();
+
+                return ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: futureConditions.length,
+                  itemBuilder: (context, index) {
+                    final condition = futureConditions[index];
+                    final isNow = index == 0;
+
+                    return Card(
+                      margin: const EdgeInsets.only(right: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.air, size: 12),
-                            const SizedBox(width: 2),
                             Text(
-                              '${condition.windSpeed.toStringAsFixed(0)} ${_getWindDirection(condition.windDirection)}',
-                              style: const TextStyle(fontSize: 12),
+                              isNow ? 'Now' : '${condition.timestamp.hour}:00',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: isNow ? Colors.blue : null,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Icon(Icons.waves, size: 20),
+                            Text('${condition.waveHeight.toStringAsFixed(1)}m'),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.air, size: 12),
+                                const SizedBox(width: 2),
+                                Text(
+                                  '${condition.windSpeed.toStringAsFixed(0)} ${_getWindDirection(condition.windDirection)}',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    );
+                  },
                 );
               },
             ),

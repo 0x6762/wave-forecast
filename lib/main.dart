@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'repositories/weather_repository.dart';
 import 'repositories/open_meteo_repository.dart';
 import 'models/surf_forecast.dart';
+import 'models/location_search_result.dart';
 
 void main() {
   runApp(const MyApp());
@@ -47,10 +48,11 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
   SurfForecast? _forecast;
   bool _isLoading = false;
   String? _error;
+  String? _selectedLocationName; // Store the clean name from search
 
-  // Rio de Janeiro, Brazil area
-  final double _latitude = -23.0165;
-  final double _longitude = -43.308;
+  // Default location: Rio de Janeiro, Brazil area
+  double _latitude = -23.0165;
+  double _longitude = -43.308;
 
   @override
   void initState() {
@@ -89,13 +91,33 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_forecast?.locationName ?? 'Loading...'),
+        title: Text(_selectedLocationName ?? _forecast?.locationName ?? 'Loading...'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: _showSearchDialog,
+          ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadForecast),
         ],
       ),
       body: _buildBody(),
     );
+  }
+
+  Future<void> _showSearchDialog() async {
+    final result = await showDialog<LocationSearchResult>(
+      context: context,
+      builder: (context) => const LocationSearchDialog(),
+    );
+
+    if (result != null) {
+      setState(() {
+        _latitude = result.latitude;
+        _longitude = result.longitude;
+        _selectedLocationName = result.cleanName; // Store the clean name
+      });
+      _loadForecast();
+    }
   }
 
   Widget _buildBody() {
@@ -275,5 +297,157 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
       default:
         return Colors.black;
     }
+  }
+}
+
+// Location Search Dialog
+class LocationSearchDialog extends StatefulWidget {
+  const LocationSearchDialog({super.key});
+
+  @override
+  State<LocationSearchDialog> createState() => _LocationSearchDialogState();
+}
+
+class _LocationSearchDialogState extends State<LocationSearchDialog> {
+  final TextEditingController _searchController = TextEditingController();
+  List<LocationSearchResult> _results = [];
+  bool _isSearching = false;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _search(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _results = [];
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearching = true;
+    });
+
+    try {
+      final repository = Provider.of<WeatherRepository>(context, listen: false);
+      final results = await repository.searchLocations(query);
+
+      setState(() {
+        _results = results;
+        _isSearching = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isSearching = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Container(
+        constraints: const BoxConstraints(maxHeight: 600, maxWidth: 500),
+        child: Column(
+          children: [
+            // Search bar
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Search surf spot (e.g., Bondi Beach)',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {
+                              _results = [];
+                            });
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onChanged: (value) {
+                  setState(() {}); // Update clear button visibility
+                },
+                onSubmitted: _search,
+              ),
+            ),
+
+            // Search button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => _search(_searchController.text),
+                  child: const Text('Search'),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Results list
+            Expanded(child: _buildResultsList()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultsList() {
+    if (_isSearching) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_results.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'Search for a surf spot',
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Try: Bondi Beach, Pipeline, Malibu',
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: _results.length,
+      itemBuilder: (context, index) {
+        final result = _results[index];
+        return ListTile(
+          leading: const Icon(Icons.location_on),
+          title: Text(result.cleanName),
+          subtitle: Text(
+            '${result.latitude.toStringAsFixed(4)}, ${result.longitude.toStringAsFixed(4)}',
+            style: const TextStyle(fontSize: 12),
+          ),
+          onTap: () {
+            Navigator.of(context).pop(result);
+          },
+        );
+      },
+    );
   }
 }

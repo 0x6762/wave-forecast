@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/surf_conditions.dart';
 import '../models/surf_forecast.dart';
+import '../models/location_search_result.dart';
 import 'weather_repository.dart';
 
 /// Open-Meteo API implementation
@@ -307,6 +308,44 @@ class OpenMeteoRepository implements WeatherRepository {
         return 'Thunderstorm with hail';
       default:
         return 'Unknown';
+    }
+  }
+
+  @override
+  Future<List<LocationSearchResult>> searchLocations(String query) async {
+    if (query.trim().isEmpty) return [];
+
+    try {
+      final url = Uri.parse('https://nominatim.openstreetmap.org/search').replace(queryParameters: {
+        'q': query,
+        'format': 'json',
+        'addressdetails': '1',
+        'limit': '10',
+      });
+
+      print('🔍 Searching locations: $url');
+      
+      final response = await _client.get(
+        url,
+        headers: {
+          'User-Agent': 'WaveForecastApp/1.0',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        print('✅ Found ${data.length} locations');
+        
+        return data
+            .map((json) => LocationSearchResult.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } else {
+        print('❌ Search failed: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('❌ Search error: $e');
+      return [];
     }
   }
 

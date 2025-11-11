@@ -1,4 +1,5 @@
 import '../models/surf_forecast.dart';
+import '../models/location_search_result.dart';
 
 /// Abstract interface for weather/surf data providers
 /// This allows easy swapping between different API providers (Open-Meteo, Stormglass, etc.)
@@ -23,5 +24,9 @@ abstract class WeatherRepository {
     required double latitude,
     required double longitude,
   });
+
+  /// Search for locations by name
+  /// Returns a list of matching locations with coordinates
+  Future<List<LocationSearchResult>> searchLocations(String query);
 }
 

@@ -109,9 +109,7 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
   Future<void> _showSearchDialog() async {
     final result = await Navigator.push<LocationSearchResult>(
       context,
-      MaterialPageRoute(
-        builder: (context) => const LocationSearchScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const LocationSearchScreen()),
     );
 
     if (result != null) {
@@ -412,7 +410,7 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
     }
 
     if (_results.isEmpty && _searchController.text.isEmpty) {
-      // Initial state - show suggestions
+      // Initial state
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -423,11 +421,6 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
               'Search for a surf spot',
               style: TextStyle(fontSize: 18, color: Colors.grey[600]),
             ),
-            const SizedBox(height: 24),
-            _buildSuggestionChip('Bondi Beach'),
-            _buildSuggestionChip('Pipeline'),
-            _buildSuggestionChip('Malibu'),
-            _buildSuggestionChip('Jeffreys Bay'),
           ],
         ),
       );
@@ -472,20 +465,6 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
           },
         );
       },
-    );
-  }
-
-  Widget _buildSuggestionChip(String label) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: ActionChip(
-        avatar: const Icon(Icons.location_on, size: 18),
-        label: Text(label),
-        onPressed: () {
-          _searchController.text = label;
-          _search(label);
-        },
-      ),
     );
   }
 }

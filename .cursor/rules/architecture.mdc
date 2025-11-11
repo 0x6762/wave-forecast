@@ -1,0 +1,32 @@
+# Architecture
+
+## Project Structure
+```
+lib/
+├── models/       # Data models and entities
+├── services/     # Business logic and API calls
+├── screens/      # Full-page UI components
+├── widgets/      # Reusable UI components
+└── utils/        # Helper functions and constants
+```
+
+## Separation of Concerns
+- **Models**: Pure data classes, no business logic
+- **Services**: Business logic, API integration, data processing
+- **Screens**: Page-level UI, orchestrates widgets and services
+- **Widgets**: Reusable UI components, minimal logic
+
+## State Management
+- Choose based on complexity: setState → Provider → Riverpod/Bloc
+- Keep state as close to where it's needed as possible
+- Avoid global state unless truly global
+
+## Dependency Injection
+- Pass dependencies via constructors (explicit and testable)
+- Initialize services in `main.dart`
+- Consider using Provider, GetIt, or similar for complex apps
+
+## Best Practices
+- Defer heavy operations (use post-frame callbacks)
+- Keep UI and business logic separate
+- Make components testable and mockable

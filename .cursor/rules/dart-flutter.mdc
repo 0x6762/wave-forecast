@@ -1,0 +1,32 @@
+# Dart & Flutter Best Practices
+
+## Dart Conventions
+- Use `const` constructors wherever possible
+- Declare variables as `final` when they won't change
+- Prefer `late` over nullable for required fields initialized later
+- Use named parameters for better code clarity
+- Use `??` and `?.` for null safety
+
+## Widget Best Practices
+- Prefer `StatelessWidget` over `StatefulWidget` when possible
+- Extract reusable widgets into separate classes
+- Use `const` constructors to optimize rebuilds
+- Use proper widget keys when needed (lists, reorderable items)
+
+## Async & Performance
+- Use `FutureBuilder` and `StreamBuilder` for async data
+- Avoid heavy operations in `build()` methods
+- Use `async`/`await` instead of `.then()` chains
+- Consider `compute()` for CPU-intensive operations
+
+## Code Organization
+- One widget per file for complex components
+- Group related widgets in the same file if simple
+- Keep build methods clean and readable
+- Extract complex widget trees into methods or widgets
+
+## Common Patterns
+- Separation between presentation and business logic
+- Repository pattern for data access
+- Service classes for complex operations
+- Extension methods for utility functions

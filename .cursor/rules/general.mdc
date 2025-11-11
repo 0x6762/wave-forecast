@@ -1,0 +1,19 @@
+# General Rules
+
+## Principles
+- Prioritize simplicity, performance, and user experience
+- Avoid blocking the main thread
+- Consistent error handling and user feedback
+- Follow established patterns in the codebase
+
+## Error Handling
+- Always wrap async operations in try-catch blocks
+- Provide clear, actionable error messages to users
+- Log errors with stack traces in debug mode
+- Handle loading and error states in UI
+
+## Code Quality
+- Write self-documenting code with clear naming
+- Keep functions small and focused (single responsibility)
+- Use comments for "why", not "what"
+- Prefer composition over inheritance

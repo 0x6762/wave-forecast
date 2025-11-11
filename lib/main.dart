@@ -91,7 +91,9 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_selectedLocationName ?? _forecast?.locationName ?? 'Loading...'),
+        title: Text(
+          _selectedLocationName ?? _forecast?.locationName ?? 'Loading...',
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
@@ -105,9 +107,11 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
   }
 
   Future<void> _showSearchDialog() async {
-    final result = await showDialog<LocationSearchResult>(
-      context: context,
-      builder: (context) => const LocationSearchDialog(),
+    final result = await Navigator.push<LocationSearchResult>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const LocationSearchScreen(),
+      ),
     );
 
     if (result != null) {
@@ -300,22 +304,33 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
   }
 }
 
-// Location Search Dialog
-class LocationSearchDialog extends StatefulWidget {
-  const LocationSearchDialog({super.key});
+// Location Search Screen (Google Maps style)
+class LocationSearchScreen extends StatefulWidget {
+  const LocationSearchScreen({super.key});
 
   @override
-  State<LocationSearchDialog> createState() => _LocationSearchDialogState();
+  State<LocationSearchScreen> createState() => _LocationSearchScreenState();
 }
 
-class _LocationSearchDialogState extends State<LocationSearchDialog> {
+class _LocationSearchScreenState extends State<LocationSearchScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
   List<LocationSearchResult> _results = [];
   bool _isSearching = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Auto-focus the search field when screen opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _searchFocus.requestFocus();
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -348,70 +363,56 @@ class _LocationSearchDialogState extends State<LocationSearchDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      child: Container(
-        constraints: const BoxConstraints(maxHeight: 600, maxWidth: 500),
-        child: Column(
-          children: [
-            // Search bar
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: TextField(
-                controller: _searchController,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Search surf spot (e.g., Bondi Beach)',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {
-                              _results = [];
-                            });
-                          },
-                        )
-                      : null,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onChanged: (value) {
-                  setState(() {}); // Update clear button visibility
-                },
-                onSubmitted: _search,
-              ),
-            ),
-
-            // Search button
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => _search(_searchController.text),
-                  child: const Text('Search'),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Results list
-            Expanded(child: _buildResultsList()),
-          ],
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
         ),
+        title: TextField(
+          controller: _searchController,
+          focusNode: _searchFocus,
+          decoration: const InputDecoration(
+            hintText: 'Search surf spot...',
+            border: InputBorder.none,
+            hintStyle: TextStyle(color: Colors.grey),
+          ),
+          style: const TextStyle(fontSize: 18),
+          textInputAction: TextInputAction.search,
+          onChanged: (value) {
+            setState(() {}); // Update UI for clear button
+          },
+          onSubmitted: _search,
+        ),
+        actions: [
+          if (_searchController.text.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.clear),
+              onPressed: () {
+                _searchController.clear();
+                setState(() {
+                  _results = [];
+                });
+                _searchFocus.requestFocus();
+              },
+            ),
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () => _search(_searchController.text),
+          ),
+        ],
       ),
+      body: _buildBody(),
     );
   }
 
-  Widget _buildResultsList() {
+  Widget _buildBody() {
     if (_isSearching) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_results.isEmpty) {
+    if (_results.isEmpty && _searchController.text.isEmpty) {
+      // Initial state - show suggestions
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -420,11 +421,33 @@ class _LocationSearchDialogState extends State<LocationSearchDialog> {
             const SizedBox(height: 16),
             Text(
               'Search for a surf spot',
+              style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 24),
+            _buildSuggestionChip('Bondi Beach'),
+            _buildSuggestionChip('Pipeline'),
+            _buildSuggestionChip('Malibu'),
+            _buildSuggestionChip('Jeffreys Bay'),
+          ],
+        ),
+      );
+    }
+
+    if (_results.isEmpty && _searchController.text.isNotEmpty) {
+      // No results found
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.location_off, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No locations found',
               style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
             const SizedBox(height: 8),
             Text(
-              'Try: Bondi Beach, Pipeline, Malibu',
+              'Try a different search term',
               style: TextStyle(fontSize: 14, color: Colors.grey[500]),
             ),
           ],
@@ -432,22 +455,37 @@ class _LocationSearchDialogState extends State<LocationSearchDialog> {
       );
     }
 
+    // Show results
     return ListView.builder(
       itemCount: _results.length,
       itemBuilder: (context, index) {
         final result = _results[index];
         return ListTile(
-          leading: const Icon(Icons.location_on),
+          leading: const Icon(Icons.location_on, color: Colors.blue),
           title: Text(result.cleanName),
           subtitle: Text(
             '${result.latitude.toStringAsFixed(4)}, ${result.longitude.toStringAsFixed(4)}',
-            style: const TextStyle(fontSize: 12),
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
           onTap: () {
             Navigator.of(context).pop(result);
           },
         );
       },
+    );
+  }
+
+  Widget _buildSuggestionChip(String label) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: ActionChip(
+        avatar: const Icon(Icons.location_on, size: 18),
+        label: Text(label),
+        onPressed: () {
+          _searchController.text = label;
+          _search(label);
+        },
+      ),
     );
   }
 }

@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'repositories/weather_repository.dart';
+import 'repositories/open_meteo_repository.dart';
+import 'example_usage.dart';
 
 void main() {
   runApp(const MyApp());
@@ -9,29 +13,24 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Wave Forecast',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
-      home: const HomePage(),
-    );
-  }
-}
-
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Wave Forecast'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: const Center(
-        child: Text('Ready to start building!'),
+    // Set up dependency injection with Provider
+    // To switch to a different API provider, simply replace OpenMeteoRepository
+    // with another implementation of WeatherRepository
+    return Provider<WeatherRepository>(
+      create: (_) => OpenMeteoRepository(),
+      dispose: (_, repository) {
+        if (repository is OpenMeteoRepository) {
+          repository.dispose();
+        }
+      },
+      child: MaterialApp(
+        title: 'Wave Forecast',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+          useMaterial3: true,
+        ),
+        home: const ExampleSurfSpotScreen(),
       ),
     );
   }

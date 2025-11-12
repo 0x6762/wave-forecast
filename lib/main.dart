@@ -224,7 +224,7 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
 
           // Hourly forecast
           const Text(
-            'Next 24 Hours',
+            'Next 12 Hours',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
@@ -236,7 +236,7 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
                 final now = DateTime.now();
                 final futureConditions = _forecast!.hourlyConditions
                     .where((c) => c.timestamp.isAfter(now))
-                    .take(24)
+                    .take(12)
                     .toList();
 
                 return ListView.builder(

@@ -98,12 +98,28 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
     }
   }
 
+  String _getPrimaryLocationName() {
+    final fullName =
+        _selectedLocationName ?? _forecast?.locationName ?? 'Loading...';
+    // Extract only the first part before the comma
+    final parts = fullName.split(', ');
+    return parts.isNotEmpty ? parts.first : fullName;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          _selectedLocationName ?? _forecast?.locationName ?? 'Loading...',
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.location_on, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              _getPrimaryLocationName(),
+              style: const TextStyle(fontSize: 18),
+            ),
+          ],
         ),
         actions: [
           IconButton(
@@ -179,6 +195,12 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Current conditions title
+          const Text(
+            'Current Conditions',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
           // Current conditions card
           Card(
             child: Padding(
@@ -186,11 +208,6 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Current Conditions',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
                   _buildConditionRow(
                     Icons.waves,
                     'Wave Height',

@@ -284,9 +284,169 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
               },
             ),
           ),
+          const SizedBox(height: 24),
+
+          // Daily forecast
+          const Text(
+            '7-Day Forecast',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          ..._buildDailyCards(),
         ],
       ),
     );
+  }
+
+  List<Widget> _buildDailyCards() {
+    if (_forecast == null) return [];
+
+    final now = DateTime.now();
+    final cards = <Widget>[];
+
+    // Group conditions by day for the next 7 days
+    for (int dayOffset = 0; dayOffset < 7; dayOffset++) {
+      final targetDay = now.add(Duration(days: dayOffset));
+      final dayConditions = _forecast!.getConditionsForDay(targetDay);
+
+      if (dayConditions.isEmpty) continue;
+
+      // Calculate daily stats
+      final avgWaveHeight =
+          dayConditions.map((c) => c.waveHeight).reduce((a, b) => a + b) /
+          dayConditions.length;
+
+      final maxWaveHeight = dayConditions
+          .map((c) => c.waveHeight)
+          .reduce((a, b) => a > b ? a : b);
+
+      final avgWindSpeed =
+          dayConditions.map((c) => c.windSpeed).reduce((a, b) => a + b) /
+          dayConditions.length;
+
+      final avgTemp =
+          dayConditions.map((c) => c.airTemperature).reduce((a, b) => a + b) /
+          dayConditions.length;
+
+      // Find best surf time (highest wave height with lowest wind)
+      final bestCondition = dayConditions.reduce((best, current) {
+        final bestScore = best.waveHeight - (best.windSpeed / 10);
+        final currentScore = current.waveHeight - (current.windSpeed / 10);
+        return currentScore > bestScore ? current : best;
+      });
+
+      final dayName = dayOffset == 0
+          ? 'Today'
+          : dayOffset == 1
+          ? 'Tomorrow'
+          : _getDayName(targetDay.weekday);
+
+      cards.add(
+        Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      dayName,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      '${targetDay.month}/${targetDay.day}',
+                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildDailyStat(
+                        Icons.waves,
+                        'Waves',
+                        '${avgWaveHeight.toStringAsFixed(1)}m avg\n${maxWaveHeight.toStringAsFixed(1)}m max',
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildDailyStat(
+                        Icons.air,
+                        'Wind',
+                        '${avgWindSpeed.toStringAsFixed(0)} km/h',
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildDailyStat(
+                        Icons.thermostat,
+                        'Temp',
+                        '${avgTemp.toStringAsFixed(0)}°C',
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: 20),
+                Row(
+                  children: [
+                    const Icon(Icons.surfing, size: 16, color: Colors.blue),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Best time: ${bestCondition.timestamp.hour}:00 - ${bestCondition.waveHeight.toStringAsFixed(1)}m waves',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return cards;
+  }
+
+  Widget _buildDailyStat(IconData icon, String label, String value) {
+    return Column(
+      children: [
+        Icon(icon, size: 20, color: Colors.blue),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  String _getDayName(int weekday) {
+    switch (weekday) {
+      case 1:
+        return 'Monday';
+      case 2:
+        return 'Tuesday';
+      case 3:
+        return 'Wednesday';
+      case 4:
+        return 'Thursday';
+      case 5:
+        return 'Friday';
+      case 6:
+        return 'Saturday';
+      case 7:
+        return 'Sunday';
+      default:
+        return '';
+    }
   }
 
   Widget _buildConditionRow(IconData icon, String label, String value) {

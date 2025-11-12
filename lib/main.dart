@@ -28,9 +28,20 @@ class MyApp extends StatelessWidget {
         title: 'Wave Forecast',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.blue,
+            brightness: Brightness.dark,
+          ),
           useMaterial3: true,
         ),
+        darkTheme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.blue,
+            brightness: Brightness.dark,
+          ),
+          useMaterial3: true,
+        ),
+        themeMode: ThemeMode.dark,
         home: const SurfSpotScreen(),
       ),
     );
@@ -229,7 +240,7 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
           ),
           const SizedBox(height: 8),
           SizedBox(
-            height: 120,
+            height: 130,
             child: Builder(
               builder: (context) {
                 // Filter to show only future hours
@@ -249,7 +260,7 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
                     return Card(
                       margin: const EdgeInsets.only(right: 8),
                       child: Padding(
-                        padding: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.all(16),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [

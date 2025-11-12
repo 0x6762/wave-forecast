@@ -212,6 +212,11 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
                     '${current.airTemperature.toStringAsFixed(0)}°C',
                   ),
                   _buildConditionRow(
+                    Icons.water,
+                    'Water Temp',
+                    '${current.waterTemperature.toStringAsFixed(0)}°C',
+                  ),
+                  _buildConditionRow(
                     Icons.wb_sunny,
                     'Weather',
                     current.weatherDescription,
@@ -322,29 +327,34 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
 
       if (dayConditions.isEmpty) continue;
 
-      // Calculate daily stats
-      final avgWaveHeight =
-          dayConditions.map((c) => c.waveHeight).reduce((a, b) => a + b) /
-          dayConditions.length;
-
+      // Calculate daily stats - min and max values
+      final minWaveHeight = dayConditions
+          .map((c) => c.waveHeight)
+          .reduce((a, b) => a < b ? a : b);
       final maxWaveHeight = dayConditions
           .map((c) => c.waveHeight)
           .reduce((a, b) => a > b ? a : b);
 
-      final avgWindSpeed =
-          dayConditions.map((c) => c.windSpeed).reduce((a, b) => a + b) /
-          dayConditions.length;
+      final minWindSpeed = dayConditions
+          .map((c) => c.windSpeed)
+          .reduce((a, b) => a < b ? a : b);
+      final maxWindSpeed = dayConditions
+          .map((c) => c.windSpeed)
+          .reduce((a, b) => a > b ? a : b);
 
-      final avgTemp =
-          dayConditions.map((c) => c.airTemperature).reduce((a, b) => a + b) /
-          dayConditions.length;
+      final minAirTemp = dayConditions
+          .map((c) => c.airTemperature)
+          .reduce((a, b) => a < b ? a : b);
+      final maxAirTemp = dayConditions
+          .map((c) => c.airTemperature)
+          .reduce((a, b) => a > b ? a : b);
 
-      // Find best surf time (highest wave height with lowest wind)
-      final bestCondition = dayConditions.reduce((best, current) {
-        final bestScore = best.waveHeight - (best.windSpeed / 10);
-        final currentScore = current.waveHeight - (current.windSpeed / 10);
-        return currentScore > bestScore ? current : best;
-      });
+      final minWaterTemp = dayConditions
+          .map((c) => c.waterTemperature)
+          .reduce((a, b) => a < b ? a : b);
+      final maxWaterTemp = dayConditions
+          .map((c) => c.waterTemperature)
+          .reduce((a, b) => a > b ? a : b);
 
       final dayName = dayOffset == 0
           ? 'Today'
@@ -383,33 +393,29 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
                       child: _buildDailyStat(
                         Icons.waves,
                         'Waves',
-                        '${avgWaveHeight.toStringAsFixed(1)}m avg\n${maxWaveHeight.toStringAsFixed(1)}m max',
+                        '${minWaveHeight.toStringAsFixed(1)}-${maxWaveHeight.toStringAsFixed(1)}m',
                       ),
                     ),
                     Expanded(
                       child: _buildDailyStat(
                         Icons.air,
                         'Wind',
-                        '${avgWindSpeed.toStringAsFixed(0)} km/h',
+                        '${minWindSpeed.toStringAsFixed(0)}-${maxWindSpeed.toStringAsFixed(0)}km/h',
                       ),
                     ),
                     Expanded(
                       child: _buildDailyStat(
                         Icons.thermostat,
-                        'Temp',
-                        '${avgTemp.toStringAsFixed(0)}°C',
+                        'Air',
+                        '${minAirTemp.toStringAsFixed(0)}-${maxAirTemp.toStringAsFixed(0)}°C',
                       ),
                     ),
-                  ],
-                ),
-                const Divider(height: 20),
-                Row(
-                  children: [
-                    const Icon(Icons.surfing, size: 16, color: Colors.blue),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Best time: ${bestCondition.timestamp.hour}:00 - ${bestCondition.waveHeight.toStringAsFixed(1)}m waves',
-                      style: const TextStyle(fontSize: 13),
+                    Expanded(
+                      child: _buildDailyStat(
+                        Icons.water,
+                        'Water',
+                        '${minWaterTemp.toStringAsFixed(0)}-${maxWaterTemp.toStringAsFixed(0)}°C',
+                      ),
                     ),
                   ],
                 ),

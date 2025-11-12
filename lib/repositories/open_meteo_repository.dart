@@ -79,6 +79,7 @@ class OpenMeteoRepository implements WeatherRepository {
         'swell_wave_height',
         'swell_wave_direction',
         'swell_wave_period',
+        'sea_surface_temperature',
       ].join(','),
       'forecast_days': days.toString(),
       'timezone': 'auto',
@@ -232,6 +233,7 @@ class OpenMeteoRepository implements WeatherRepository {
     final waveHeights = (marineHourly['wave_height'] as List);
     final wavePeriods = (marineHourly['wave_period'] as List);
     final waveDirections = (marineHourly['wave_direction'] as List);
+    final oceanTemperatures = (marineHourly['sea_surface_temperature'] as List);
     
     final temperatures = (weatherHourly['temperature_2m'] as List);
     final windSpeeds = (weatherHourly['wind_speed_10m'] as List);
@@ -246,7 +248,7 @@ class OpenMeteoRepository implements WeatherRepository {
         waveDirection: _toDouble(waveDirections[i]),
         windSpeed: _toDouble(windSpeeds[i]),
         windDirection: _toDouble(windDirections[i]),
-        waterTemperature: 0.0, // Open-Meteo marine API doesn't provide this in free tier
+        waterTemperature: _toDouble(oceanTemperatures[i]),
         airTemperature: _toDouble(temperatures[i]),
         weatherDescription: _getWeatherDescription(_toInt(weatherCodes[i])),
       ));

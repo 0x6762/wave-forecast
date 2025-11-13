@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../models/tide_data.dart';
 import '../database/app_cache_database.dart';
+import '../config/app_constants.dart';
 import 'tide_data_repository.dart';
 
 /// Stormglass API implementation for tide data
@@ -11,13 +12,6 @@ class StormglassTideRepository implements TideDataRepository {
   final http.Client _client;
   final AppCacheDatabase _db;
   final String? _apiKey;
-  
-  // Default cache settings
-  static const String _cacheType = 'tide';
-  static const double _defaultCacheRadiusKm = 25.0; // Reuse data within 25km (generous for most coastlines)
-  static const Duration _defaultCacheDuration = Duration(days: 7); // Tide forecasts valid for 7 days
-  
-  static const String _baseUrl = 'https://api.stormglass.io/v2/tide';
 
   StormglassTideRepository({
     http.Client? client,
@@ -39,12 +33,12 @@ class StormglassTideRepository implements TideDataRepository {
       return null;
     }
 
-    final radius = cacheRadiusKm ?? _defaultCacheRadiusKm;
+    final radius = cacheRadiusKm ?? AppConstants.defaultCacheRadiusKm;
 
     // Check cache first
     try {
       final cached = await _db.findNearby(
-        dataType: _cacheType,
+        dataType: AppConstants.tideCacheType,
         latitude: latitude,
         longitude: longitude,
         radiusKm: radius,
@@ -73,7 +67,7 @@ class StormglassTideRepository implements TideDataRepository {
       final now = DateTime.now();
       final end = now.add(Duration(days: days));
       
-      final url = Uri.parse('$_baseUrl/extremes/point').replace(
+      final url = Uri.parse('${AppConstants.stormglassTideApiUrl}/extremes/point').replace(
         queryParameters: {
           'lat': latitude.toString(),
           'lng': longitude.toString(),
@@ -152,10 +146,10 @@ class StormglassTideRepository implements TideDataRepository {
   /// Cache tide data for future use
   Future<void> _cacheData(TideData data) async {
     try {
-      final validUntil = DateTime.now().add(_defaultCacheDuration);
+      final validUntil = DateTime.now().add(AppConstants.tideCacheDuration);
       
       await _db.saveCache(
-        dataType: _cacheType,
+        dataType: AppConstants.tideCacheType,
         key: data.stationId,
         latitude: data.latitude,
         longitude: data.longitude,
@@ -192,7 +186,7 @@ class StormglassTideRepository implements TideDataRepository {
 
   @override
   Future<void> clearCache() async {
-    await _db.clearCacheByType(_cacheType);
+    await _db.clearCacheByType(AppConstants.tideCacheType);
   }
 
   @override

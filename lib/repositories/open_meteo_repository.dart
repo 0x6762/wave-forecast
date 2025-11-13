@@ -4,6 +4,7 @@ import '../models/surf_conditions.dart';
 import '../models/surf_forecast.dart';
 import '../models/location_search_result.dart';
 import '../models/tide_data.dart';
+import '../config/app_constants.dart';
 import 'weather_repository.dart';
 import 'tide_data_repository.dart';
 
@@ -12,9 +13,6 @@ import 'tide_data_repository.dart';
 class OpenMeteoRepository implements WeatherRepository {
   final http.Client _client;
   final TideDataRepository? _tideRepository;
-  
-  static const String _marineApiUrl = 'https://marine-api.open-meteo.com/v1/marine';
-  static const String _weatherApiUrl = 'https://api.open-meteo.com/v1/forecast';
 
   OpenMeteoRepository({
     http.Client? client,
@@ -87,7 +85,7 @@ class OpenMeteoRepository implements WeatherRepository {
     double longitude,
     int days,
   ) async {
-    final url = Uri.parse(_marineApiUrl).replace(queryParameters: {
+    final url = Uri.parse(AppConstants.marineApiUrl).replace(queryParameters: {
       'latitude': latitude.toString(),
       'longitude': longitude.toString(),
       'hourly': [
@@ -118,7 +116,7 @@ class OpenMeteoRepository implements WeatherRepository {
     double longitude,
     int days,
   ) async {
-    final url = Uri.parse(_weatherApiUrl).replace(queryParameters: {
+    final url = Uri.parse(AppConstants.weatherApiUrl).replace(queryParameters: {
       'latitude': latitude.toString(),
       'longitude': longitude.toString(),
       'hourly': [
@@ -156,18 +154,18 @@ class OpenMeteoRepository implements WeatherRepository {
 
   Future<String?> _getLocationFromOSM(double latitude, double longitude) async {
     try {
-      final url = Uri.parse('https://nominatim.openstreetmap.org/reverse').replace(queryParameters: {
+      final url = Uri.parse('${AppConstants.osmGeocodingUrl}/reverse').replace(queryParameters: {
         'lat': latitude.toString(),
         'lon': longitude.toString(),
         'format': 'json',
-        'zoom': '10', // City/town level
+        'zoom': AppConstants.geocodingZoomLevel,
         'addressdetails': '1',
       });
       
       final response = await _client.get(
         url,
         headers: {
-          'User-Agent': 'WaveForecastApp/1.0', // Required by OSM
+          'User-Agent': AppConstants.appUserAgent,
         },
       );
 
@@ -322,17 +320,17 @@ class OpenMeteoRepository implements WeatherRepository {
     if (query.trim().isEmpty) return [];
 
     try {
-      final url = Uri.parse('https://nominatim.openstreetmap.org/search').replace(queryParameters: {
+      final url = Uri.parse('${AppConstants.osmGeocodingUrl}/search').replace(queryParameters: {
         'q': query,
         'format': 'json',
         'addressdetails': '1',
-        'limit': '10',
+        'limit': AppConstants.maxLocationSearchResults.toString(),
       });
       
       final response = await _client.get(
         url,
         headers: {
-          'User-Agent': 'WaveForecastApp/1.0',
+          'User-Agent': AppConstants.appUserAgent,
         },
       );
 

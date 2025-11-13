@@ -4,6 +4,7 @@ import '../repositories/weather_repository.dart';
 import '../models/surf_forecast.dart';
 import '../models/location_search_result.dart';
 import '../models/tide_data.dart';
+import '../config/app_constants.dart';
 import 'location_search_screen.dart';
 
 class SurfSpotScreen extends StatefulWidget {
@@ -41,7 +42,7 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
       final forecast = await repository.getSurfForecast(
         latitude: _latitude,
         longitude: _longitude,
-        days: 7,
+        days: AppConstants.defaultForecastDays,
       );
 
       setState(() {
@@ -299,7 +300,7 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
                 final now = DateTime.now();
                 final futureConditions = _forecast!.hourlyConditions
                     .where((c) => c.timestamp.isAfter(now))
-                    .take(12)
+                    .take(AppConstants.hourlyForecastDisplayCount)
                     .toList();
 
                 return ListView.builder(
@@ -367,8 +368,8 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
     final now = DateTime.now();
     final cards = <Widget>[];
 
-    // Group conditions by day for the next 7 days
-    for (int dayOffset = 0; dayOffset < 7; dayOffset++) {
+    // Group conditions by day for the next days
+    for (int dayOffset = 0; dayOffset < AppConstants.defaultForecastDays; dayOffset++) {
       final targetDay = now.add(Duration(days: dayOffset));
       final dayConditions = _forecast!.getConditionsForDay(targetDay);
 

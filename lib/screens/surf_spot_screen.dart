@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../repositories/weather_repository.dart';
 import '../models/surf_forecast.dart';
+import '../models/surf_conditions.dart';
 import '../models/location_search_result.dart';
 import '../models/tide_data.dart';
 import '../config/app_constants.dart';
@@ -14,11 +15,13 @@ class SurfSpotScreen extends StatefulWidget {
   State<SurfSpotScreen> createState() => _SurfSpotScreenState();
 }
 
-class _SurfSpotScreenState extends State<SurfSpotScreen> {
+class _SurfSpotScreenState extends State<SurfSpotScreen>
+    with SingleTickerProviderStateMixin {
   SurfForecast? _forecast;
   bool _isLoading = false;
   String? _error;
   String? _selectedLocationName; // Store the clean name from search
+  late TabController _tabController;
 
   // Default location: Rio de Janeiro, Brazil area
   double _latitude = -23.0165;
@@ -27,7 +30,14 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _loadForecast();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadForecast() async {
@@ -87,6 +97,15 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
           ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadForecast),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          padding: const EdgeInsets.symmetric(horizontal: 0),
+          tabs: const [
+            Tab(text: 'Today'),
+            Tab(text: '7-Day Forecast'),
+          ],
+        ),
       ),
       body: _buildBody(),
     );
@@ -149,6 +168,13 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
       return const Center(child: Text('No current conditions'));
     }
 
+    return TabBarView(
+      controller: _tabController,
+      children: [_buildTodayTab(current), _buildForecastTab()],
+    );
+  }
+
+  Widget _buildTodayTab(SurfConditions current) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -348,9 +374,17 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
               },
             ),
           ),
-          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
 
-          // Daily forecast
+  Widget _buildForecastTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           const Text(
             '7-Day Forecast',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -369,7 +403,11 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
     final cards = <Widget>[];
 
     // Group conditions by day for the next days
-    for (int dayOffset = 0; dayOffset < AppConstants.defaultForecastDays; dayOffset++) {
+    for (
+      int dayOffset = 0;
+      dayOffset < AppConstants.defaultForecastDays;
+      dayOffset++
+    ) {
       final targetDay = now.add(Duration(days: dayOffset));
       final dayConditions = _forecast!.getConditionsForDay(targetDay);
 
@@ -613,4 +651,3 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
     return '';
   }
 }
-

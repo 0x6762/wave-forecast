@@ -5,7 +5,6 @@ class TideData {
   final double latitude;
   final double longitude;
   final double distanceFromRequest; // km from requested location to station
-  final List<TidePoint> tidePoints;
   final List<TideExtreme> extremes; // High and low tides
   final DateTime fetchedAt;
 
@@ -15,22 +14,9 @@ class TideData {
     required this.latitude,
     required this.longitude,
     required this.distanceFromRequest,
-    required this.tidePoints,
     required this.extremes,
     required this.fetchedAt,
   });
-
-  /// Get current tide height (closest to now)
-  TidePoint? getCurrentTide() {
-    if (tidePoints.isEmpty) return null;
-    
-    final now = DateTime.now();
-    return tidePoints.reduce((a, b) {
-      final aDiff = a.timestamp.difference(now).abs();
-      final bDiff = b.timestamp.difference(now).abs();
-      return aDiff < bDiff ? a : b;
-    });
-  }
 
   /// Get next high tide
   TideExtreme? getNextHighTide() {
@@ -56,19 +42,18 @@ class TideData {
     return futureTides.first;
   }
 
-  /// Check if tide is currently rising or falling
-  bool get isRising {
-    if (tidePoints.length < 2) return false;
-    
+  /// Get the next two tide extremes (in chronological order)
+  List<TideExtreme> getNextTwoTides() {
     final now = DateTime.now();
-    final sorted = tidePoints
-        .where((p) => p.timestamp.isBefore(now.add(const Duration(hours: 1))))
-        .toList()
-      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    final futureTides = extremes
+        .where((e) => e.timestamp.isAfter(now))
+        .toList();
     
-    if (sorted.length < 2) return false;
+    if (futureTides.isEmpty) return [];
+    futureTides.sort((a, b) => a.timestamp.compareTo(b.timestamp));
     
-    return sorted.last.height > sorted[sorted.length - 2].height;
+    // Return first two (or less if not available)
+    return futureTides.take(2).toList();
   }
 
   Map<String, dynamic> toJson() {
@@ -78,7 +63,6 @@ class TideData {
       'latitude': latitude,
       'longitude': longitude,
       'distance_from_request': distanceFromRequest,
-      'tide_points': tidePoints.map((p) => p.toJson()).toList(),
       'extremes': extremes.map((e) => e.toJson()).toList(),
       'fetched_at': fetchedAt.toIso8601String(),
     };
@@ -91,9 +75,6 @@ class TideData {
       latitude: (json['latitude'] as num).toDouble(),
       longitude: (json['longitude'] as num).toDouble(),
       distanceFromRequest: (json['distance_from_request'] as num).toDouble(),
-      tidePoints: (json['tide_points'] as List)
-          .map((p) => TidePoint.fromJson(p as Map<String, dynamic>))
-          .toList(),
       extremes: (json['extremes'] as List)
           .map((e) => TideExtreme.fromJson(e as Map<String, dynamic>))
           .toList(),

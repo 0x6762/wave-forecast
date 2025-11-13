@@ -58,8 +58,8 @@ class OpenMeteoRepository implements WeatherRepository {
       
       print('📍 Location: $locationName');
 
-      // Combine data into SurfConditions (including tide)
-      final conditions = _combineData(marineData, weatherData, tideData);
+      // Combine data into SurfConditions
+      final conditions = _combineData(marineData, weatherData);
       
       print('✅ Combined ${conditions.length} hourly conditions');
 
@@ -258,7 +258,6 @@ class OpenMeteoRepository implements WeatherRepository {
   List<SurfConditions> _combineData(
     Map<String, dynamic> marineData,
     Map<String, dynamic> weatherData,
-    TideData? tideData,
   ) {
     final List<SurfConditions> conditions = [];
 
@@ -279,28 +278,6 @@ class OpenMeteoRepository implements WeatherRepository {
     for (int i = 0; i < times.length; i++) {
       final timestamp = DateTime.parse(times[i].toString());
       
-      // Find matching tide data for this timestamp
-      double? tideHeight;
-      bool? isTideRising;
-      
-      if (tideData != null) {
-        final tidePeriod = tideData.tidePoints.where((p) {
-          return p.timestamp.difference(timestamp).abs().inMinutes < 30;
-        }).toList();
-        
-        if (tidePeriod.isNotEmpty) {
-          tideHeight = tidePeriod.first.height;
-          
-          // Determine if tide is rising by checking trend
-          final tideIndex = tideData.tidePoints.indexOf(tidePeriod.first);
-          if (tideIndex > 0 && tideIndex < tideData.tidePoints.length - 1) {
-            final prevHeight = tideData.tidePoints[tideIndex - 1].height;
-            final nextHeight = tideData.tidePoints[tideIndex + 1].height;
-            isTideRising = nextHeight > prevHeight;
-          }
-        }
-      }
-      
       conditions.add(SurfConditions(
         timestamp: timestamp,
         waveHeight: _toDouble(waveHeights[i]),
@@ -311,8 +288,6 @@ class OpenMeteoRepository implements WeatherRepository {
         waterTemperature: _toDouble(oceanTemperatures[i]),
         airTemperature: _toDouble(temperatures[i]),
         weatherDescription: _getWeatherDescription(_toInt(weatherCodes[i])),
-        tideHeight: tideHeight,
-        isTideRising: isTideRising,
       ));
     }
 

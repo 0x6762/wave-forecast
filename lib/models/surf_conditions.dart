@@ -8,10 +8,6 @@ class SurfConditions {
   final double waterTemperature; // celsius
   final double airTemperature; // celsius
   final String weatherDescription;
-  
-  // Optional tide information
-  final double? tideHeight; // meters (can be null if tide data unavailable)
-  final bool? isTideRising; // true = rising, false = falling
 
   SurfConditions({
     required this.timestamp,
@@ -23,8 +19,6 @@ class SurfConditions {
     required this.waterTemperature,
     required this.airTemperature,
     required this.weatherDescription,
-    this.tideHeight,
-    this.isTideRising,
   });
 
   // Helper method to determine surf quality

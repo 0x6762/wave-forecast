@@ -7,6 +7,7 @@ import 'repositories/tide_data_repository.dart';
 import 'repositories/tide_repository.dart';
 import 'models/surf_forecast.dart';
 import 'models/location_search_result.dart';
+import 'models/tide_data.dart';
 import 'database/app_cache_database.dart';
 
 Future<void> main() async {
@@ -28,9 +29,12 @@ class MyApp extends StatelessWidget {
     // API key loaded from .env file (see .env.example)
     // To switch to a different tide provider, simply replace StormglassTideRepository
     // with another implementation of TideDataRepository
+    //
+    // DEV MODE: Set apiKey to null to use cached data only (saves API quota during testing)
     final tideRepository = StormglassTideRepository(
       database: database,
-      apiKey: dotenv.env['STORMGLASS_API_KEY'],
+      apiKey: null, // TEMPORARILY DISABLED to save API quota
+      // apiKey: dotenv.env['STORMGLASS_API_KEY'], // Uncomment when ready to test
     );
 
     // Set up dependency injection with Provider
@@ -263,15 +267,6 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
                     'Weather',
                     current.weatherDescription,
                   ),
-                  if (current.tideHeight != null) ...[
-                    _buildConditionRow(
-                      current.isTideRising == true
-                          ? Icons.arrow_upward
-                          : Icons.arrow_downward,
-                      'Tide',
-                      '${current.tideHeight!.toStringAsFixed(2)}m ${current.isTideRising == true ? "Rising" : "Falling"}',
-                    ),
-                  ],
                   const Divider(),
                   Center(
                     child: Text(
@@ -302,35 +297,53 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Station: ${_forecast!.tideData!.stationName}',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[400]),
-                    ),
-                    Text(
-                      '${_forecast!.tideData!.distanceFromRequest.toStringAsFixed(1)}km away',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[400]),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildTideExtreme(
-                            'Next High Tide',
-                            _forecast!.tideData!.getNextHighTide(),
-                            Icons.arrow_upward,
-                            Colors.blue,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildTideExtreme(
-                            'Next Low Tide',
-                            _forecast!.tideData!.getNextLowTide(),
-                            Icons.arrow_downward,
-                            Colors.orange,
-                          ),
-                        ),
-                      ],
+                    Builder(
+                      builder: (context) {
+                        final nextTides = _forecast!.tideData!
+                            .getNextTwoTides();
+
+                        if (nextTides.isEmpty) {
+                          return const Text('No upcoming tide data');
+                        }
+
+                        return Row(
+                          children: [
+                            // First tide
+                            Expanded(
+                              child: _buildTideExtreme(
+                                nextTides[0].type == TideType.high
+                                    ? 'High Tide'
+                                    : 'Low Tide',
+                                nextTides[0],
+                                nextTides[0].type == TideType.high
+                                    ? Icons.arrow_upward
+                                    : Icons.arrow_downward,
+                                nextTides[0].type == TideType.high
+                                    ? Colors.blue
+                                    : Colors.orange,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            // Second tide (if available)
+                            Expanded(
+                              child: nextTides.length > 1
+                                  ? _buildTideExtreme(
+                                      nextTides[1].type == TideType.high
+                                          ? 'High Tide'
+                                          : 'Low Tide',
+                                      nextTides[1],
+                                      nextTides[1].type == TideType.high
+                                          ? Icons.arrow_upward
+                                          : Icons.arrow_downward,
+                                      nextTides[1].type == TideType.high
+                                          ? Colors.blue
+                                          : Colors.orange,
+                                    )
+                                  : const SizedBox(),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -567,16 +580,21 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
     final time = tideExtreme.timestamp;
     final height = tideExtreme.height;
     final now = DateTime.now();
-    final difference = time.difference(now);
 
+    // Format time as HH:MM with AM/PM
+    final hour = time.hour;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final period = hour >= 12 ? 'PM' : 'AM';
+    final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+
+    // Show time, and date if not today
     String timeStr;
-    if (difference.inHours < 1) {
-      timeStr = '${difference.inMinutes}min';
-    } else if (difference.inHours < 24) {
-      timeStr = '${difference.inHours}h ${difference.inMinutes % 60}min';
+    if (time.year == now.year &&
+        time.month == now.month &&
+        time.day == now.day) {
+      timeStr = '$displayHour:$minute $period';
     } else {
-      timeStr =
-          '${time.hour}:${time.minute.toString().padLeft(2, '0')} (${time.day}/${time.month})';
+      timeStr = '$displayHour:$minute $period (${time.day}/${time.month})';
     }
 
     return Column(

@@ -81,13 +81,15 @@ class StormglassTideRepository implements TideDataRepository {
     int days,
   ) async {
     try {
-      final end = DateTime.now().add(Duration(days: days));
+      // Request tide extremes (high/low tides) for the forecast period
+      final now = DateTime.now();
+      final end = now.add(Duration(days: days));
       
       final url = Uri.parse('$_baseUrl/extremes/point').replace(
         queryParameters: {
           'lat': latitude.toString(),
           'lng': longitude.toString(),
-          'start': DateTime.now().toIso8601String(),
+          'start': now.toIso8601String(),
           'end': end.toIso8601String(),
         },
       );
@@ -107,7 +109,6 @@ class StormglassTideRepository implements TideDataRepository {
         
         print('✅ Tide data received for ${tideData.stationName}');
         print('   Station: ${tideData.distanceFromRequest.toStringAsFixed(1)}km away');
-        print('   Data points: ${tideData.tidePoints.length}');
         print('   Extremes: ${tideData.extremes.length}');
 
         // Cache the response
@@ -131,10 +132,10 @@ class StormglassTideRepository implements TideDataRepository {
     double requestLat,
     double requestLon,
   ) {
-    // Parse extremes (high/low tides)
+    // Parse extremes (high/low tides) - convert to local time
     final extremesList = json['data'] as List;
     final extremes = extremesList.map((e) {
-      final timestamp = DateTime.parse(e['time'] as String);
+      final timestamp = DateTime.parse(e['time'] as String).toLocal(); // Convert to local time
       final height = (e['height'] as num).toDouble();
       final type = e['type'] as String;
       
@@ -144,10 +145,6 @@ class StormglassTideRepository implements TideDataRepository {
         type: type == 'high' ? TideType.high : TideType.low,
       );
     }).toList();
-
-    // Generate hourly tide points from extremes
-    // (In a real implementation, you might fetch this from /tide/hourly endpoint)
-    final tidePoints = _interpolateTidePoints(extremes);
 
     // Get station metadata
     final meta = json['meta'] as Map<String, dynamic>?;
@@ -168,49 +165,9 @@ class StormglassTideRepository implements TideDataRepository {
       latitude: stationLat.toDouble(),
       longitude: stationLon.toDouble(),
       distanceFromRequest: distance,
-      tidePoints: tidePoints,
       extremes: extremes,
       fetchedAt: DateTime.now(),
     );
-  }
-
-  /// Interpolate hourly tide points from high/low extremes
-  /// This creates a smooth curve between tide extremes
-  List<TidePoint> _interpolateTidePoints(List<TideExtreme> extremes) {
-    if (extremes.isEmpty) return [];
-    
-    extremes.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-    
-    final points = <TidePoint>[];
-    final start = extremes.first.timestamp;
-    final end = extremes.last.timestamp;
-    
-    // Create hourly points
-    for (var time = start; time.isBefore(end); time = time.add(const Duration(hours: 1))) {
-      // Find surrounding extremes
-      TideExtreme? before;
-      TideExtreme? after;
-      
-      for (var i = 0; i < extremes.length - 1; i++) {
-        if (extremes[i].timestamp.isBefore(time) && extremes[i + 1].timestamp.isAfter(time)) {
-          before = extremes[i];
-          after = extremes[i + 1];
-          break;
-        }
-      }
-      
-      if (before != null && after != null) {
-        // Simple linear interpolation
-        final totalDuration = after.timestamp.difference(before.timestamp).inSeconds;
-        final elapsed = time.difference(before.timestamp).inSeconds;
-        final ratio = elapsed / totalDuration;
-        
-        final height = before.height + (after.height - before.height) * ratio;
-        points.add(TidePoint(timestamp: time, height: height));
-      }
-    }
-    
-    return points;
   }
 
   /// Cache tide data for future use

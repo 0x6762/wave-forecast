@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/surf_conditions.dart';
 import '../models/surf_forecast.dart';
@@ -7,6 +8,112 @@ import '../models/tide_data.dart';
 import '../config/app_constants.dart';
 import 'weather_repository.dart';
 import 'tide_data_repository.dart';
+
+/// Data class for passing parsing work to isolate
+class _ParseDataInput {
+  final Map<String, dynamic> marineData;
+  final Map<String, dynamic> weatherData;
+
+  _ParseDataInput({
+    required this.marineData,
+    required this.weatherData,
+  });
+}
+
+/// Top-level function for isolate - parses and combines marine + weather data
+/// Must be top-level or static to work with compute()
+List<SurfConditions> _parseDataInIsolate(_ParseDataInput input) {
+  final conditions = <SurfConditions>[];
+
+  final marineHourly = input.marineData['hourly'] as Map<String, dynamic>;
+  final weatherHourly = input.weatherData['hourly'] as Map<String, dynamic>;
+
+  final times = (marineHourly['time'] as List);
+  final waveHeights = (marineHourly['wave_height'] as List);
+  final wavePeriods = (marineHourly['wave_period'] as List);
+  final waveDirections = (marineHourly['wave_direction'] as List);
+  final oceanTemperatures = (marineHourly['sea_surface_temperature'] as List);
+  
+  final temperatures = (weatherHourly['temperature_2m'] as List);
+  final windSpeeds = (weatherHourly['wind_speed_10m'] as List);
+  final windDirections = (weatherHourly['wind_direction_10m'] as List);
+  final weatherCodes = (weatherHourly['weather_code'] as List);
+
+  for (int i = 0; i < times.length; i++) {
+    final timestamp = DateTime.parse(times[i].toString());
+    
+    conditions.add(SurfConditions(
+      timestamp: timestamp,
+      waveHeight: _toDoubleIsolate(waveHeights[i]),
+      wavePeriod: _toDoubleIsolate(wavePeriods[i]),
+      waveDirection: _toDoubleIsolate(waveDirections[i]),
+      windSpeed: _toDoubleIsolate(windSpeeds[i]),
+      windDirection: _toDoubleIsolate(windDirections[i]),
+      waterTemperature: _toDoubleIsolate(oceanTemperatures[i]),
+      airTemperature: _toDoubleIsolate(temperatures[i]),
+      weatherDescription: _getWeatherDescriptionIsolate(_toIntIsolate(weatherCodes[i])),
+    ));
+  }
+
+  return conditions;
+}
+
+/// Helper functions for isolate (must be top-level)
+double _toDoubleIsolate(dynamic value) {
+  if (value == null) return 0.0;
+  if (value is double) return value;
+  if (value is int) return value.toDouble();
+  if (value is String) return double.tryParse(value) ?? 0.0;
+  return 0.0;
+}
+
+int _toIntIsolate(dynamic value) {
+  if (value == null) return 0;
+  if (value is int) return value;
+  if (value is double) return value.toInt();
+  if (value is String) return int.tryParse(value) ?? 0;
+  return 0;
+}
+
+String _getWeatherDescriptionIsolate(int code) {
+  // WMO Weather interpretation codes
+  switch (code) {
+    case 0:
+      return 'Clear sky';
+    case 1:
+      return 'Mainly clear';
+    case 2:
+      return 'Partly cloudy';
+    case 3:
+      return 'Overcast';
+    case 45:
+    case 48:
+      return 'Foggy';
+    case 51:
+    case 53:
+    case 55:
+      return 'Drizzle';
+    case 61:
+    case 63:
+    case 65:
+      return 'Rain';
+    case 71:
+    case 73:
+    case 75:
+      return 'Snow';
+    case 80:
+    case 81:
+    case 82:
+      return 'Rain showers';
+    case 95:
+      return 'Thunderstorm';
+    case 96:
+    case 99:
+      return 'Thunderstorm with hail';
+    default:
+      return 'Unknown';
+  }
+}
 
 /// Open-Meteo API implementation
 /// Documentation: https://open-meteo.com/en/docs
@@ -44,8 +151,12 @@ class OpenMeteoRepository implements WeatherRepository {
         longitude: longitude,
       );
 
-      // Combine data into SurfConditions
-      final conditions = _combineData(marineData, weatherData);
+      // Parse and combine data in background isolate to avoid blocking main thread
+      // This processes 168 hours of data (7 days × 24 hours) off the main thread
+      final conditions = await compute(
+        _parseDataInIsolate,
+        _ParseDataInput(marineData: marineData, weatherData: weatherData),
+      );
 
       return SurfForecast(
         locationName: locationName,
@@ -56,7 +167,7 @@ class OpenMeteoRepository implements WeatherRepository {
         tideData: tideData,
       );
     } catch (e) {
-      throw Exception('Failed to fetch surf forecast: $e');
+throw Exception('Failed to fetch surf forecast: $e');
     }
   }
 
@@ -220,100 +331,6 @@ class OpenMeteoRepository implements WeatherRepository {
     return null;
   }
 
-  List<SurfConditions> _combineData(
-    Map<String, dynamic> marineData,
-    Map<String, dynamic> weatherData,
-  ) {
-    final List<SurfConditions> conditions = [];
-
-    final marineHourly = marineData['hourly'] as Map<String, dynamic>;
-    final weatherHourly = weatherData['hourly'] as Map<String, dynamic>;
-
-    final times = (marineHourly['time'] as List);
-    final waveHeights = (marineHourly['wave_height'] as List);
-    final wavePeriods = (marineHourly['wave_period'] as List);
-    final waveDirections = (marineHourly['wave_direction'] as List);
-    final oceanTemperatures = (marineHourly['sea_surface_temperature'] as List);
-    
-    final temperatures = (weatherHourly['temperature_2m'] as List);
-    final windSpeeds = (weatherHourly['wind_speed_10m'] as List);
-    final windDirections = (weatherHourly['wind_direction_10m'] as List);
-    final weatherCodes = (weatherHourly['weather_code'] as List);
-
-    for (int i = 0; i < times.length; i++) {
-      final timestamp = DateTime.parse(times[i].toString());
-      
-      conditions.add(SurfConditions(
-        timestamp: timestamp,
-        waveHeight: _toDouble(waveHeights[i]),
-        wavePeriod: _toDouble(wavePeriods[i]),
-        waveDirection: _toDouble(waveDirections[i]),
-        windSpeed: _toDouble(windSpeeds[i]),
-        windDirection: _toDouble(windDirections[i]),
-        waterTemperature: _toDouble(oceanTemperatures[i]),
-        airTemperature: _toDouble(temperatures[i]),
-        weatherDescription: _getWeatherDescription(_toInt(weatherCodes[i])),
-      ));
-    }
-
-    return conditions;
-  }
-
-  double _toDouble(dynamic value) {
-    if (value == null) return 0.0;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) return double.tryParse(value) ?? 0.0;
-    return 0.0;
-  }
-
-  int _toInt(dynamic value) {
-    if (value == null) return 0;
-    if (value is int) return value;
-    if (value is double) return value.toInt();
-    if (value is String) return int.tryParse(value) ?? 0;
-    return 0;
-  }
-
-  String _getWeatherDescription(int code) {
-    // WMO Weather interpretation codes
-    switch (code) {
-      case 0:
-        return 'Clear sky';
-      case 1:
-        return 'Mainly clear';
-      case 2:
-        return 'Partly cloudy';
-      case 3:
-        return 'Overcast';
-      case 45:
-      case 48:
-        return 'Foggy';
-      case 51:
-      case 53:
-      case 55:
-        return 'Drizzle';
-      case 61:
-      case 63:
-      case 65:
-        return 'Rain';
-      case 71:
-      case 73:
-      case 75:
-        return 'Snow';
-      case 80:
-      case 81:
-      case 82:
-        return 'Rain showers';
-      case 95:
-        return 'Thunderstorm';
-      case 96:
-      case 99:
-        return 'Thunderstorm with hail';
-      default:
-        return 'Unknown';
-    }
-  }
 
   @override
   Future<List<LocationSearchResult>> searchLocations(String query) async {

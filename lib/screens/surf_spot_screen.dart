@@ -418,36 +418,39 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
                 final condition = _futureHourlyConditions[index];
                 final isNow = index == 0;
 
-                return Card(
-                  margin: const EdgeInsets.only(right: 8),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          isNow ? 'Now' : '${condition.timestamp.hour}:00',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: isNow ? Colors.blue : null,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Icon(Icons.waves, size: 20),
-                        Text('${condition.waveHeight.toStringAsFixed(1)}m'),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.air, size: 12),
-                            const SizedBox(width: 2),
-                            Text(
-                              '${condition.windSpeed.toStringAsFixed(0)} ${_getWindDirection(condition.windDirection)}',
-                              style: const TextStyle(fontSize: 12),
+                return RepaintBoundary(
+                  child: Card(
+                    margin: const EdgeInsets.only(right: 8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            isNow ? 'Now' : '${condition.timestamp.hour}:00',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: isNow ? Colors.blue : null,
                             ),
-                          ],
-                        ),
-                      ],
+                          ),
+                          const SizedBox(height: 4),
+                          const Icon(Icons.waves, size: 20),
+                          Text('${condition.waveHeight.toStringAsFixed(1)}m'),
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.air, size: 12),
+                              const SizedBox(width: 2),
+                              Text(
+                                '${condition.windSpeed.toStringAsFixed(0)} ${_getWindDirection(condition.windDirection)}',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -539,6 +542,7 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
 
   Widget _buildDailyStat(IconData icon, String label, String value) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 20, color: Colors.blue),
         const SizedBox(height: 4),
@@ -632,7 +636,7 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Icon(icon, size: 20),
+          Icon(icon, size: 20, color: Colors.grey[700]),
           const SizedBox(width: 8),
           Expanded(child: Text(label)),
           Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),

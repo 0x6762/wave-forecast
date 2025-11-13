@@ -15,13 +15,41 @@ class SurfSpotScreen extends StatefulWidget {
   State<SurfSpotScreen> createState() => _SurfSpotScreenState();
 }
 
-class _SurfSpotScreenState extends State<SurfSpotScreen>
-    with SingleTickerProviderStateMixin {
+// Pre-computed daily statistics to avoid expensive calculations on every rebuild
+class DailyStats {
+  final DateTime date;
+  final String dayName;
+  final double minWaveHeight;
+  final double maxWaveHeight;
+  final double minWindSpeed;
+  final double maxWindSpeed;
+  final double minAirTemp;
+  final double maxAirTemp;
+  final double minWaterTemp;
+  final double maxWaterTemp;
+
+  DailyStats({
+    required this.date,
+    required this.dayName,
+    required this.minWaveHeight,
+    required this.maxWaveHeight,
+    required this.minWindSpeed,
+    required this.maxWindSpeed,
+    required this.minAirTemp,
+    required this.maxAirTemp,
+    required this.minWaterTemp,
+    required this.maxWaterTemp,
+  });
+}
+
+class _SurfSpotScreenState extends State<SurfSpotScreen> {
   SurfForecast? _forecast;
   bool _isLoading = false;
   String? _error;
   String? _selectedLocationName; // Store the clean name from search
-  late TabController _tabController;
+  List<DailyStats> _dailyStats = []; // Cached daily statistics
+  List<SurfConditions> _futureHourlyConditions =
+      []; // Cached filtered hourly conditions
 
   // Default location: Rio de Janeiro, Brazil area
   double _latitude = -23.0165;
@@ -30,14 +58,7 @@ class _SurfSpotScreenState extends State<SurfSpotScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _loadForecast();
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadForecast() async {
@@ -55,8 +76,14 @@ class _SurfSpotScreenState extends State<SurfSpotScreen>
         days: AppConstants.defaultForecastDays,
       );
 
+      // Pre-compute daily statistics and filter hourly conditions once
+      final dailyStats = _computeDailyStats(forecast);
+      final futureHourly = _filterFutureHourlyConditions(forecast);
+
       setState(() {
         _forecast = forecast;
+        _dailyStats = dailyStats;
+        _futureHourlyConditions = futureHourly;
         _isLoading = false;
       });
     } catch (e) {
@@ -65,6 +92,86 @@ class _SurfSpotScreenState extends State<SurfSpotScreen>
         _isLoading = false;
       });
     }
+  }
+
+  /// Filter hourly conditions to show only future hours
+  /// This prevents filtering on every widget rebuild
+  List<SurfConditions> _filterFutureHourlyConditions(SurfForecast forecast) {
+    final now = DateTime.now();
+    return forecast.hourlyConditions
+        .where((c) => c.timestamp.isAfter(now))
+        .take(AppConstants.hourlyForecastDisplayCount)
+        .toList();
+  }
+
+  /// Compute daily statistics once when forecast is loaded
+  /// This prevents expensive reduce operations on every widget rebuild
+  List<DailyStats> _computeDailyStats(SurfForecast forecast) {
+    final now = DateTime.now();
+    final stats = <DailyStats>[];
+
+    for (
+      int dayOffset = 0;
+      dayOffset < AppConstants.defaultForecastDays;
+      dayOffset++
+    ) {
+      final targetDay = now.add(Duration(days: dayOffset));
+      final dayConditions = forecast.getConditionsForDay(targetDay);
+
+      if (dayConditions.isEmpty) continue;
+
+      // Calculate daily stats - min and max values (do this ONCE, not on every rebuild)
+      final minWaveHeight = dayConditions
+          .map((c) => c.waveHeight)
+          .reduce((a, b) => a < b ? a : b);
+      final maxWaveHeight = dayConditions
+          .map((c) => c.waveHeight)
+          .reduce((a, b) => a > b ? a : b);
+
+      final minWindSpeed = dayConditions
+          .map((c) => c.windSpeed)
+          .reduce((a, b) => a < b ? a : b);
+      final maxWindSpeed = dayConditions
+          .map((c) => c.windSpeed)
+          .reduce((a, b) => a > b ? a : b);
+
+      final minAirTemp = dayConditions
+          .map((c) => c.airTemperature)
+          .reduce((a, b) => a < b ? a : b);
+      final maxAirTemp = dayConditions
+          .map((c) => c.airTemperature)
+          .reduce((a, b) => a > b ? a : b);
+
+      final minWaterTemp = dayConditions
+          .map((c) => c.waterTemperature)
+          .reduce((a, b) => a < b ? a : b);
+      final maxWaterTemp = dayConditions
+          .map((c) => c.waterTemperature)
+          .reduce((a, b) => a > b ? a : b);
+
+      final dayName = dayOffset == 0
+          ? 'Today'
+          : dayOffset == 1
+          ? 'Tomorrow'
+          : _getDayName(targetDay.weekday);
+
+      stats.add(
+        DailyStats(
+          date: targetDay,
+          dayName: dayName,
+          minWaveHeight: minWaveHeight,
+          maxWaveHeight: maxWaveHeight,
+          minWindSpeed: minWindSpeed,
+          maxWindSpeed: maxWindSpeed,
+          minAirTemp: minAirTemp,
+          maxAirTemp: maxAirTemp,
+          minWaterTemp: minWaterTemp,
+          maxWaterTemp: maxWaterTemp,
+        ),
+      );
+    }
+
+    return stats;
   }
 
   String _getPrimaryLocationName() {
@@ -97,15 +204,6 @@ class _SurfSpotScreenState extends State<SurfSpotScreen>
           ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadForecast),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          padding: const EdgeInsets.symmetric(horizontal: 0),
-          tabs: const [
-            Tab(text: 'Today'),
-            Tab(text: '7-Day Forecast'),
-          ],
-        ),
       ),
       body: _buildBody(),
     );
@@ -168,13 +266,6 @@ class _SurfSpotScreenState extends State<SurfSpotScreen>
       return const Center(child: Text('No current conditions'));
     }
 
-    return TabBarView(
-      controller: _tabController,
-      children: [_buildTodayTab(current), _buildForecastTab()],
-    );
-  }
-
-  Widget _buildTodayTab(SurfConditions current) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -320,71 +411,52 @@ class _SurfSpotScreenState extends State<SurfSpotScreen>
           const SizedBox(height: 8),
           SizedBox(
             height: 130,
-            child: Builder(
-              builder: (context) {
-                // Filter to show only future hours
-                final now = DateTime.now();
-                final futureConditions = _forecast!.hourlyConditions
-                    .where((c) => c.timestamp.isAfter(now))
-                    .take(AppConstants.hourlyForecastDisplayCount)
-                    .toList();
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _futureHourlyConditions.length,
+              itemBuilder: (context, index) {
+                final condition = _futureHourlyConditions[index];
+                final isNow = index == 0;
 
-                return ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: futureConditions.length,
-                  itemBuilder: (context, index) {
-                    final condition = futureConditions[index];
-                    final isNow = index == 0;
-
-                    return Card(
-                      margin: const EdgeInsets.only(right: 8),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                return Card(
+                  margin: const EdgeInsets.only(right: 8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          isNow ? 'Now' : '${condition.timestamp.hour}:00',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: isNow ? Colors.blue : null,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Icon(Icons.waves, size: 20),
+                        Text('${condition.waveHeight.toStringAsFixed(1)}m'),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
+                            const Icon(Icons.air, size: 12),
+                            const SizedBox(width: 2),
                             Text(
-                              isNow ? 'Now' : '${condition.timestamp.hour}:00',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: isNow ? Colors.blue : null,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Icon(Icons.waves, size: 20),
-                            Text('${condition.waveHeight.toStringAsFixed(1)}m'),
-                            const SizedBox(height: 4),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.air, size: 12),
-                                const SizedBox(width: 2),
-                                Text(
-                                  '${condition.windSpeed.toStringAsFixed(0)} ${_getWindDirection(condition.windDirection)}',
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ],
+                              '${condition.windSpeed.toStringAsFixed(0)} ${_getWindDirection(condition.windDirection)}',
+                              style: const TextStyle(fontSize: 12),
                             ),
                           ],
                         ),
-                      ),
-                    );
-                  },
+                      ],
+                    ),
+                  ),
                 );
               },
             ),
           ),
-        ],
-      ),
-    );
-  }
+          const SizedBox(height: 24),
 
-  Widget _buildForecastTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+          // Daily forecast
           const Text(
             '7-Day Forecast',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -396,123 +468,73 @@ class _SurfSpotScreenState extends State<SurfSpotScreen>
     );
   }
 
+  /// Build daily forecast cards using pre-computed statistics
+  /// This is now a lightweight operation since stats are computed once in _loadForecast()
   List<Widget> _buildDailyCards() {
-    if (_forecast == null) return [];
+    if (_dailyStats.isEmpty) return [];
 
-    final now = DateTime.now();
-    final cards = <Widget>[];
-
-    // Group conditions by day for the next days
-    for (
-      int dayOffset = 0;
-      dayOffset < AppConstants.defaultForecastDays;
-      dayOffset++
-    ) {
-      final targetDay = now.add(Duration(days: dayOffset));
-      final dayConditions = _forecast!.getConditionsForDay(targetDay);
-
-      if (dayConditions.isEmpty) continue;
-
-      // Calculate daily stats - min and max values
-      final minWaveHeight = dayConditions
-          .map((c) => c.waveHeight)
-          .reduce((a, b) => a < b ? a : b);
-      final maxWaveHeight = dayConditions
-          .map((c) => c.waveHeight)
-          .reduce((a, b) => a > b ? a : b);
-
-      final minWindSpeed = dayConditions
-          .map((c) => c.windSpeed)
-          .reduce((a, b) => a < b ? a : b);
-      final maxWindSpeed = dayConditions
-          .map((c) => c.windSpeed)
-          .reduce((a, b) => a > b ? a : b);
-
-      final minAirTemp = dayConditions
-          .map((c) => c.airTemperature)
-          .reduce((a, b) => a < b ? a : b);
-      final maxAirTemp = dayConditions
-          .map((c) => c.airTemperature)
-          .reduce((a, b) => a > b ? a : b);
-
-      final minWaterTemp = dayConditions
-          .map((c) => c.waterTemperature)
-          .reduce((a, b) => a < b ? a : b);
-      final maxWaterTemp = dayConditions
-          .map((c) => c.waterTemperature)
-          .reduce((a, b) => a > b ? a : b);
-
-      final dayName = dayOffset == 0
-          ? 'Today'
-          : dayOffset == 1
-          ? 'Tomorrow'
-          : _getDayName(targetDay.weekday);
-
-      cards.add(
-        Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      dayName,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+    return _dailyStats.map((stats) {
+      return Card(
+        margin: const EdgeInsets.only(bottom: 8),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    stats.dayName,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
                     ),
-                    Text(
-                      '${targetDay.month}/${targetDay.day}',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
+                  Text(
+                    '${stats.date.month}/${stats.date.day}',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildDailyStat(
+                      Icons.waves,
+                      'Waves',
+                      '${stats.minWaveHeight.toStringAsFixed(1)}-${stats.maxWaveHeight.toStringAsFixed(1)}m',
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildDailyStat(
-                        Icons.waves,
-                        'Waves',
-                        '${minWaveHeight.toStringAsFixed(1)}-${maxWaveHeight.toStringAsFixed(1)}m',
-                      ),
+                  ),
+                  Expanded(
+                    child: _buildDailyStat(
+                      Icons.air,
+                      'Wind',
+                      '${stats.minWindSpeed.toStringAsFixed(0)}-${stats.maxWindSpeed.toStringAsFixed(0)}km/h',
                     ),
-                    Expanded(
-                      child: _buildDailyStat(
-                        Icons.air,
-                        'Wind',
-                        '${minWindSpeed.toStringAsFixed(0)}-${maxWindSpeed.toStringAsFixed(0)}km/h',
-                      ),
+                  ),
+                  Expanded(
+                    child: _buildDailyStat(
+                      Icons.thermostat,
+                      'Air',
+                      '${stats.minAirTemp.toStringAsFixed(0)}-${stats.maxAirTemp.toStringAsFixed(0)}°C',
                     ),
-                    Expanded(
-                      child: _buildDailyStat(
-                        Icons.thermostat,
-                        'Air',
-                        '${minAirTemp.toStringAsFixed(0)}-${maxAirTemp.toStringAsFixed(0)}°C',
-                      ),
+                  ),
+                  Expanded(
+                    child: _buildDailyStat(
+                      Icons.water,
+                      'Water',
+                      '${stats.minWaterTemp.toStringAsFixed(0)}-${stats.maxWaterTemp.toStringAsFixed(0)}°C',
                     ),
-                    Expanded(
-                      child: _buildDailyStat(
-                        Icons.water,
-                        'Water',
-                        '${minWaterTemp.toStringAsFixed(0)}-${maxWaterTemp.toStringAsFixed(0)}°C',
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       );
-    }
-
-    return cards;
+    }).toList();
   }
 
   Widget _buildDailyStat(IconData icon, String label, String value) {

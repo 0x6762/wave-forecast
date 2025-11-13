@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'repositories/weather_repository.dart';
 import 'repositories/open_meteo_repository.dart';
+import 'repositories/tide_data_repository.dart';
+import 'repositories/tide_repository.dart';
 import 'models/surf_forecast.dart';
 import 'models/location_search_result.dart';
+import 'database/app_cache_database.dart';
 
-void main() {
+Future<void> main() async {
+  // Load environment variables
+  await dotenv.load(fileName: ".env");
+
   runApp(const MyApp());
 }
 
@@ -14,16 +21,34 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Initialize database (singleton)
+    final database = AppCacheDatabase();
+
+    // Initialize tide repository with Stormglass API
+    // API key loaded from .env file (see .env.example)
+    // To switch to a different tide provider, simply replace StormglassTideRepository
+    // with another implementation of TideDataRepository
+    final tideRepository = StormglassTideRepository(
+      database: database,
+      apiKey: dotenv.env['STORMGLASS_API_KEY'],
+    );
+
     // Set up dependency injection with Provider
     // To switch to a different API provider, simply replace OpenMeteoRepository
     // with another implementation of WeatherRepository
-    return Provider<WeatherRepository>(
-      create: (_) => OpenMeteoRepository(),
-      dispose: (_, repository) {
-        if (repository is OpenMeteoRepository) {
-          repository.dispose();
-        }
-      },
+    return MultiProvider(
+      providers: [
+        Provider<AppCacheDatabase>.value(value: database),
+        Provider<TideDataRepository>.value(value: tideRepository),
+        Provider<WeatherRepository>(
+          create: (_) => OpenMeteoRepository(tideRepository: tideRepository),
+          dispose: (_, repository) {
+            if (repository is OpenMeteoRepository) {
+              repository.dispose();
+            }
+          },
+        ),
+      ],
       child: MaterialApp(
         title: 'Wave Forecast',
         debugShowCheckedModeBanner: false,
@@ -238,6 +263,15 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
                     'Weather',
                     current.weatherDescription,
                   ),
+                  if (current.tideHeight != null) ...[
+                    _buildConditionRow(
+                      current.isTideRising == true
+                          ? Icons.arrow_upward
+                          : Icons.arrow_downward,
+                      'Tide',
+                      '${current.tideHeight!.toStringAsFixed(2)}m ${current.isTideRising == true ? "Rising" : "Falling"}',
+                    ),
+                  ],
                   const Divider(),
                   Center(
                     child: Text(
@@ -254,6 +288,56 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
             ),
           ),
           const SizedBox(height: 16),
+
+          // Tide information section
+          if (_forecast!.tideData != null) ...[
+            const Text(
+              'Tide Information',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Station: ${_forecast!.tideData!.stationName}',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                    ),
+                    Text(
+                      '${_forecast!.tideData!.distanceFromRequest.toStringAsFixed(1)}km away',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildTideExtreme(
+                            'Next High Tide',
+                            _forecast!.tideData!.getNextHighTide(),
+                            Icons.arrow_upward,
+                            Colors.blue,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _buildTideExtreme(
+                            'Next Low Tide',
+                            _forecast!.tideData!.getNextLowTide(),
+                            Icons.arrow_downward,
+                            Colors.orange,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
 
           // Hourly forecast
           const Text(
@@ -458,6 +542,54 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
         ),
+      ],
+    );
+  }
+
+  Widget _buildTideExtreme(
+    String label,
+    dynamic tideExtreme,
+    IconData icon,
+    Color color,
+  ) {
+    if (tideExtreme == null) {
+      return Column(
+        children: [
+          Icon(icon, size: 20, color: Colors.grey),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(fontSize: 12)),
+          const SizedBox(height: 2),
+          const Text('N/A', style: TextStyle(fontSize: 14)),
+        ],
+      );
+    }
+
+    final time = tideExtreme.timestamp;
+    final height = tideExtreme.height;
+    final now = DateTime.now();
+    final difference = time.difference(now);
+
+    String timeStr;
+    if (difference.inHours < 1) {
+      timeStr = '${difference.inMinutes}min';
+    } else if (difference.inHours < 24) {
+      timeStr = '${difference.inHours}h ${difference.inMinutes % 60}min';
+    } else {
+      timeStr =
+          '${time.hour}:${time.minute.toString().padLeft(2, '0')} (${time.day}/${time.month})';
+    }
+
+    return Column(
+      children: [
+        Icon(icon, size: 20, color: color),
+        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(fontSize: 12)),
+        const SizedBox(height: 2),
+        Text(
+          '${height.toStringAsFixed(2)}m',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        Text(timeStr, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
       ],
     );
   }

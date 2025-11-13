@@ -14,17 +14,26 @@ Data classes that represent surf conditions, independent of any API provider.
   - Wind speed and direction
   - Air/water temperature
   - Weather description
+  - Tide height and direction (optional)
   - Helper methods for surf quality assessment
 
 - **`SurfForecast`** - Collection of surf conditions over time
   - Location information
   - List of hourly conditions
+  - Optional tide data
   - Helper methods to filter by date
+
+- **`TideData`** - Tide information for a location
+  - Tide station details
+  - Hourly tide points
+  - High/low tide extremes
+  - Helper methods (getNextHighTide, isRising, etc.)
 
 ### 2. Repositories (`lib/repositories/`)
 
-#### Abstract Interface
-**`WeatherRepository`** - Defines the contract for any weather data provider
+#### Weather Data Repository
+
+**Abstract Interface: `WeatherRepository`**
 ```dart
 abstract class WeatherRepository {
   Future<SurfForecast> getSurfForecast({
@@ -40,24 +49,63 @@ abstract class WeatherRepository {
 }
 ```
 
-#### Concrete Implementation
-**`OpenMeteoRepository`** - Current implementation using Open-Meteo API
+**Implementation: `OpenMeteoRepository`**
 - Implements the `WeatherRepository` interface
 - Handles API calls to Open-Meteo's marine and weather endpoints
+- Integrates tide data from TideDataRepository
 - Transforms API responses into our domain models
 
-### 3. Dependency Injection
+#### Tide Data Repository
+
+**Abstract Interface: `TideDataRepository`**
+```dart
+abstract class TideDataRepository {
+  Future<TideData?> getTideData({
+    required double latitude,
+    required double longitude,
+    int days = 7,
+    double? cacheRadiusKm,
+  });
+  
+  Future<void> clearCache();
+  void dispose();
+}
+```
+
+**Implementation: `StormglassTideRepository`**
+- Implements the `TideDataRepository` interface
+- Fetches tide data from Stormglass API
+- Smart proximity-based caching (reuses data within 25km)
+- Persistent storage via Drift database
+
+### 3. Database Layer (`lib/database/`)
+
+**`AppCacheDatabase`** - Generic caching system using Drift
+- Stores location-based data with proximity search
+- Extensible schema supports multiple data types (tide, weather, etc.)
+- Automatic expiration management
+- Haversine distance calculations for nearby cache lookup
+
+See [`.cursor/rules/tide-integration.mdc`](.cursor/rules/tide-integration.mdc) for complete caching details.
+
+### 4. Dependency Injection
 
 The app uses **Provider** for dependency injection in `main.dart`:
 
 ```dart
-Provider<WeatherRepository>(
-  create: (_) => OpenMeteoRepository(),
+MultiProvider(
+  providers: [
+    Provider<AppCacheDatabase>.value(value: database),
+    Provider<TideDataRepository>.value(value: tideRepository),
+    Provider<WeatherRepository>(
+      create: (_) => OpenMeteoRepository(tideRepository: tideRepository),
+    ),
+  ],
   child: MaterialApp(...),
 )
 ```
 
-To use the repository anywhere in your app:
+To use repositories anywhere in your app:
 ```dart
 final repository = Provider.of<WeatherRepository>(context, listen: false);
 final forecast = await repository.getSurfForecast(
@@ -68,48 +116,54 @@ final forecast = await repository.getSurfForecast(
 
 ## How to Switch API Providers
 
-Switching to a different API provider is simple:
+Both weather and tide data follow the same repository pattern for easy provider swapping.
 
-### Step 1: Create a new repository implementation
+### Example: Switching Tide Provider
+
+**Step 1: Create a new repository implementation**
 
 ```dart
-// lib/repositories/stormglass_repository.dart
-import 'weather_repository.dart';
-import '../models/surf_forecast.dart';
+// lib/repositories/noaa_tide_repository.dart
+import 'tide_data_repository.dart';
+import '../models/tide_data.dart';
+import '../database/app_cache_database.dart';
 
-class StormglassRepository implements WeatherRepository {
+class NOAATideRepository implements TideDataRepository {
   @override
-  Future<SurfForecast> getSurfForecast({
+  Future<TideData?> getTideData({
     required double latitude,
     required double longitude,
     int days = 7,
+    double? cacheRadiusKm,
   }) async {
-    // Your Stormglass API implementation
-    // Transform their data into SurfForecast model
+    // Your NOAA API implementation
+    // Transform their data into TideData model
   }
 
   @override
-  Future<String> getLocationName({
-    required double latitude,
-    required double longitude,
-  }) async {
-    // Your implementation
-  }
+  Future<void> clearCache() async { /* ... */ }
+  
+  @override
+  void dispose() { /* ... */ }
 }
 ```
 
-### Step 2: Update main.dart
+**Step 2: Update main.dart**
 
-Simply replace `OpenMeteoRepository()` with your new implementation:
+Simply replace `StormglassTideRepository()` with your new implementation:
 
 ```dart
-Provider<WeatherRepository>(
-  create: (_) => StormglassRepository(), // Changed this line only!
-  child: MaterialApp(...),
-)
+final tideRepository = NOAATideRepository(  // Changed this line only!
+  database: database,
+  apiKey: 'NOAA_KEY',
+);
 ```
 
 That's it! The rest of your app continues to work without any changes.
+
+### Example: Switching Weather Provider
+
+Follow the same pattern for weather data - implement `WeatherRepository` and update `main.dart`.
 
 ## Current API: Open-Meteo
 
@@ -135,6 +189,29 @@ That's it! The rest of your app continues to work without any changes.
 - ✅ High resolution forecasts
 - ✅ Reasonable rate limits
 
+## Current APIs
+
+### Weather/Surf: Open-Meteo
+**Documentation:** https://open-meteo.com/en/docs
+
+**Endpoints:**
+- Marine API: Wave height, direction, period, swell data
+- Weather API: Temperature, wind, weather codes
+
+**Benefits:**
+- ✅ Free and open source, no API key required
+- ✅ Global coverage with high resolution forecasts
+
+### Tide: Stormglass
+**Documentation:** https://stormglass.io/tide-api
+
+**Endpoints:**
+- Tide API: High/low tides, hourly tide heights
+
+**Benefits:**
+- ✅ Global tide data, free tier (10 requests/day)
+- ✅ Smart caching makes free tier highly effective
+
 ## File Structure
 
 ```
@@ -142,10 +219,17 @@ lib/
 ├── main.dart                          # App entry point, DI setup
 ├── models/
 │   ├── surf_conditions.dart           # Single point-in-time data
-│   └── surf_forecast.dart             # Collection of conditions
-└── repositories/
-    ├── weather_repository.dart        # Abstract interface
-    └── open_meteo_repository.dart     # Open-Meteo implementation
+│   ├── surf_forecast.dart             # Collection of conditions
+│   ├── tide_data.dart                 # Tide information
+│   └── location_search_result.dart    # Location search results
+├── repositories/
+│   ├── weather_repository.dart        # Weather abstract interface
+│   ├── open_meteo_repository.dart     # Open-Meteo implementation
+│   ├── tide_data_repository.dart      # Tide abstract interface
+│   └── tide_repository.dart           # Stormglass implementation
+└── database/
+    ├── app_cache_database.dart        # Generic caching system (Drift)
+    └── app_cache_database.g.dart      # Generated Drift code
 ```
 
 ## Benefits of This Architecture
@@ -155,12 +239,11 @@ lib/
 3. **Maintainability** - Clear separation of concerns
 4. **Scalability** - Easy to add new data sources
 5. **Type Safety** - Compile-time checks for API contracts
+6. **Efficient Caching** - Smart proximity-based cache reduces API calls
+7. **Extensibility** - Generic database schema supports future data types
 
-## Future Enhancements
+## Learn More
 
-- Add caching layer (local storage)
-- Support multiple simultaneous providers
-- Add retry logic and error handling
-- Implement rate limiting
-- Add offline mode support
+- **Tide Integration**: See [`.cursor/rules/tide-integration.mdc`](.cursor/rules/tide-integration.mdc) for complete tide data documentation
+- **Cursor Rules**: Check `.cursor/rules/` directory for coding standards and best practices
 

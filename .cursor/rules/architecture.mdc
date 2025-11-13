@@ -3,30 +3,40 @@
 ## Project Structure
 ```
 lib/
-├── models/       # Data models and entities
-├── services/     # Business logic and API calls
-├── screens/      # Full-page UI components
-├── widgets/      # Reusable UI components
-└── utils/        # Helper functions and constants
+├── models/       # Data models (SurfConditions, TideData, etc.)
+├── repositories/ # API integration (abstract interfaces + implementations)
+├── database/     # Drift caching layer
+└── main.dart     # UI + dependency injection
 ```
 
 ## Separation of Concerns
 - **Models**: Pure data classes, no business logic
-- **Services**: Business logic, API integration, data processing
-- **Screens**: Page-level UI, orchestrates widgets and services
-- **Widgets**: Reusable UI components, minimal logic
+- **Repositories**: API integration via abstract interfaces (easy provider swapping)
+- **Database**: Generic caching layer (Drift), extensible for multiple data types
+- **UI**: Presentation logic only, consumes repositories via Provider
 
-## State Management
-- Choose based on complexity: setState → Provider → Riverpod/Bloc
-- Keep state as close to where it's needed as possible
-- Avoid global state unless truly global
+## Repository Pattern
+```dart
+// 1. Define interface
+abstract class DataRepository { Future<Data> getData({...}); }
+
+// 2. Implement for specific provider
+class ProviderRepository implements DataRepository { /* API calls */ }
+
+// 3. Swap easily in main.dart
+Provider<DataRepository>(create: (_) => ProviderRepository())
+```
+
+**Current**: `WeatherRepository` (Open-Meteo), `TideDataRepository` (Stormglass)
 
 ## Dependency Injection
-- Pass dependencies via constructors (explicit and testable)
-- Initialize services in `main.dart`
-- Consider using Provider, GetIt, or similar for complex apps
+- Use Provider for DI (see main.dart)
+- Pass repositories via constructors
+- Keep dependencies explicit and mockable
 
 ## Best Practices
-- Defer heavy operations (use post-frame callbacks)
-- Keep UI and business logic separate
-- Make components testable and mockable
+- Repository pattern for all external data
+- Generic database schema for extensibility
+- Smart caching (proximity-based, expiring)
+- Parallel data fetching (weather + tide)
+- Graceful degradation (null = unavailable)

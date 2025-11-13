@@ -3,18 +3,24 @@ import 'package:http/http.dart' as http;
 import '../models/surf_conditions.dart';
 import '../models/surf_forecast.dart';
 import '../models/location_search_result.dart';
+import '../models/tide_data.dart';
 import 'weather_repository.dart';
+import 'tide_data_repository.dart';
 
 /// Open-Meteo API implementation
 /// Documentation: https://open-meteo.com/en/docs
 class OpenMeteoRepository implements WeatherRepository {
   final http.Client _client;
+  final TideDataRepository? _tideRepository;
   
   static const String _marineApiUrl = 'https://marine-api.open-meteo.com/v1/marine';
   static const String _weatherApiUrl = 'https://api.open-meteo.com/v1/forecast';
 
-  OpenMeteoRepository({http.Client? client}) 
-      : _client = client ?? http.Client();
+  OpenMeteoRepository({
+    http.Client? client,
+    TideDataRepository? tideRepository,
+  })  : _client = client ?? http.Client(),
+        _tideRepository = tideRepository;
 
   @override
   Future<SurfForecast> getSurfForecast({
@@ -25,17 +31,24 @@ class OpenMeteoRepository implements WeatherRepository {
     try {
       print('🌊 Fetching surf forecast for: $latitude, $longitude');
       
-      // Fetch marine data (waves) and weather data in parallel
+      // Fetch marine data (waves), weather data, and tide data in parallel
       final results = await Future.wait([
         _fetchMarineData(latitude, longitude, days),
         _fetchWeatherData(latitude, longitude, days),
+        _fetchTideData(latitude, longitude, days),
       ]);
 
-      final marineData = results[0];
-      final weatherData = results[1];
+      final marineData = results[0] as Map<String, dynamic>;
+      final weatherData = results[1] as Map<String, dynamic>;
+      final tideData = results[2] as TideData?;
       
       print('✅ Marine data received');
       print('✅ Weather data received');
+      if (tideData != null) {
+        print('✅ Tide data received (${tideData.stationName})');
+      } else {
+        print('⚠️ Tide data unavailable');
+      }
 
       // Get location name
       String locationName = await getLocationName(
@@ -45,8 +58,8 @@ class OpenMeteoRepository implements WeatherRepository {
       
       print('📍 Location: $locationName');
 
-      // Combine data into SurfConditions
-      final conditions = _combineData(marineData, weatherData);
+      // Combine data into SurfConditions (including tide)
+      final conditions = _combineData(marineData, weatherData, tideData);
       
       print('✅ Combined ${conditions.length} hourly conditions');
 
@@ -56,11 +69,33 @@ class OpenMeteoRepository implements WeatherRepository {
         longitude: longitude,
         hourlyConditions: conditions,
         fetchedAt: DateTime.now(),
+        tideData: tideData,
       );
     } catch (e, stackTrace) {
       print('❌ Error fetching surf forecast: $e');
       print('Stack trace: $stackTrace');
       throw Exception('Failed to fetch surf forecast: $e');
+    }
+  }
+
+  Future<TideData?> _fetchTideData(
+    double latitude,
+    double longitude,
+    int days,
+  ) async {
+    if (_tideRepository == null) {
+      return null;
+    }
+    
+    try {
+      return await _tideRepository.getTideData(
+        latitude: latitude,
+        longitude: longitude,
+        days: days,
+      );
+    } catch (e) {
+      print('⚠️ Tide data fetch failed: $e');
+      return null;
     }
   }
 
@@ -223,6 +258,7 @@ class OpenMeteoRepository implements WeatherRepository {
   List<SurfConditions> _combineData(
     Map<String, dynamic> marineData,
     Map<String, dynamic> weatherData,
+    TideData? tideData,
   ) {
     final List<SurfConditions> conditions = [];
 
@@ -241,8 +277,32 @@ class OpenMeteoRepository implements WeatherRepository {
     final weatherCodes = (weatherHourly['weather_code'] as List);
 
     for (int i = 0; i < times.length; i++) {
+      final timestamp = DateTime.parse(times[i].toString());
+      
+      // Find matching tide data for this timestamp
+      double? tideHeight;
+      bool? isTideRising;
+      
+      if (tideData != null) {
+        final tidePeriod = tideData.tidePoints.where((p) {
+          return p.timestamp.difference(timestamp).abs().inMinutes < 30;
+        }).toList();
+        
+        if (tidePeriod.isNotEmpty) {
+          tideHeight = tidePeriod.first.height;
+          
+          // Determine if tide is rising by checking trend
+          final tideIndex = tideData.tidePoints.indexOf(tidePeriod.first);
+          if (tideIndex > 0 && tideIndex < tideData.tidePoints.length - 1) {
+            final prevHeight = tideData.tidePoints[tideIndex - 1].height;
+            final nextHeight = tideData.tidePoints[tideIndex + 1].height;
+            isTideRising = nextHeight > prevHeight;
+          }
+        }
+      }
+      
       conditions.add(SurfConditions(
-        timestamp: DateTime.parse(times[i].toString()),
+        timestamp: timestamp,
         waveHeight: _toDouble(waveHeights[i]),
         wavePeriod: _toDouble(wavePeriods[i]),
         waveDirection: _toDouble(waveDirections[i]),
@@ -251,6 +311,8 @@ class OpenMeteoRepository implements WeatherRepository {
         waterTemperature: _toDouble(oceanTemperatures[i]),
         airTemperature: _toDouble(temperatures[i]),
         weatherDescription: _getWeatherDescription(_toInt(weatherCodes[i])),
+        tideHeight: tideHeight,
+        isTideRising: isTideRising,
       ));
     }
 

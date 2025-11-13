@@ -1,4 +1,5 @@
 import 'surf_conditions.dart';
+import 'tide_data.dart';
 
 class SurfForecast {
   final String locationName;
@@ -6,6 +7,7 @@ class SurfForecast {
   final double longitude;
   final List<SurfConditions> hourlyConditions;
   final DateTime fetchedAt;
+  final TideData? tideData; // Optional tide information
 
   SurfForecast({
     required this.locationName,
@@ -13,6 +15,7 @@ class SurfForecast {
     required this.longitude,
     required this.hourlyConditions,
     required this.fetchedAt,
+    this.tideData,
   });
 
   // Get current conditions (closest to now)

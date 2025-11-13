@@ -1,0 +1,75 @@
+# Tide Data Integration
+
+## Architecture
+Follows repository pattern like weather data for easy provider swapping.
+
+```dart
+abstract class TideDataRepository {
+  Future<TideData?> getTideData({required double latitude, longitude, int days, double? cacheRadiusKm});
+  Future<void> clearCache();
+  void dispose();
+}
+
+// Current: StormglassTideRepository (Stormglass API)
+// Future: NOAATideRepository, WorldTidesRepository, etc.
+```
+
+## Smart Caching (Drift Database)
+
+**Generic Schema** (extensible for weather alerts, swell, etc.):
+```dart
+class CachedData extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get dataType => text();    // 'tide', 'weather', etc.
+  TextColumn get key => text();         // Station ID
+  RealColumn get latitude/longitude;    // For proximity search
+  TextColumn get dataJson => text();    // Cached data
+  DateTimeColumn get fetchedAt/validUntil;
+}
+```
+
+**Strategy**: Check cache within radius (default 25km) → Cache hit returns data → Cache miss fetches API & caches for 7 days
+
+**Efficiency**: 1 API call can serve 10-20+ nearby locations along coast (very effective for most areas)
+
+## Configuration
+
+```dart
+// lib/repositories/tide_repository.dart
+static const double _defaultCacheRadiusKm = 25.0;  // Generous for most coastlines
+static const Duration _defaultCacheDuration = Duration(days: 7);
+
+// lib/main.dart - Setup
+final tideRepository = StormglassTideRepository(
+  database: AppCacheDatabase(),
+  apiKey: 'YOUR_KEY', // null = no tide data (graceful)
+);
+```
+
+## Models
+
+- `TideData`: Station info, hourly points, high/low extremes
+- `SurfConditions`: Added optional `tideHeight` & `isTideRising`
+- `SurfForecast`: Added optional `tideData`
+
+## Integration Points
+
+1. `app_cache_database.dart` - Generic caching layer
+2. `tide_data_repository.dart` - Abstract interface  
+3. `tide_repository.dart` - Stormglass implementation
+4. `open_meteo_repository.dart` - Consumes TideDataRepository
+5. UI (`main.dart`) - Displays tide when available
+
+## Best Practices
+
+- **Provider swap**: Implement interface → Update main.dart (one line)
+- **Error handling**: `getTideData()` returns null if unavailable (no API key, error, etc.)
+- **Cache management**: Auto-expires, manual clear via `clearCache()`
+- **Performance**: Fetched in parallel with wave/weather data
+- **Drift codegen**: `flutter pub run build_runner build`
+
+## API Limits
+
+Stormglass free tier: 10 requests/day
+- Without cache: 10 locations
+- With 25km cache: 100-200+ locations (cache persists across sessions)

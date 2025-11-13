@@ -29,8 +29,6 @@ class OpenMeteoRepository implements WeatherRepository {
     int days = 7,
   }) async {
     try {
-      print('🌊 Fetching surf forecast for: $latitude, $longitude');
-      
       // Fetch marine data (waves), weather data, and tide data in parallel
       final results = await Future.wait([
         _fetchMarineData(latitude, longitude, days),
@@ -41,27 +39,15 @@ class OpenMeteoRepository implements WeatherRepository {
       final marineData = results[0] as Map<String, dynamic>;
       final weatherData = results[1] as Map<String, dynamic>;
       final tideData = results[2] as TideData?;
-      
-      print('✅ Marine data received');
-      print('✅ Weather data received');
-      if (tideData != null) {
-        print('✅ Tide data received (${tideData.stationName})');
-      } else {
-        print('⚠️ Tide data unavailable');
-      }
 
       // Get location name
       String locationName = await getLocationName(
         latitude: latitude,
         longitude: longitude,
       );
-      
-      print('📍 Location: $locationName');
 
       // Combine data into SurfConditions
       final conditions = _combineData(marineData, weatherData);
-      
-      print('✅ Combined ${conditions.length} hourly conditions');
 
       return SurfForecast(
         locationName: locationName,
@@ -71,9 +57,7 @@ class OpenMeteoRepository implements WeatherRepository {
         fetchedAt: DateTime.now(),
         tideData: tideData,
       );
-    } catch (e, stackTrace) {
-      print('❌ Error fetching surf forecast: $e');
-      print('Stack trace: $stackTrace');
+    } catch (e) {
       throw Exception('Failed to fetch surf forecast: $e');
     }
   }
@@ -119,16 +103,12 @@ class OpenMeteoRepository implements WeatherRepository {
       'timezone': 'auto',
     });
 
-    print('🌊 Marine API URL: $url');
     final response = await _client.get(url);
 
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
-      print('✅ Marine API response received');
       return data;
     } else {
-      print('❌ Marine API failed: ${response.statusCode}');
-      print('Response: ${response.body}');
       throw Exception('Marine API request failed: ${response.statusCode} - ${response.body}');
     }
   }
@@ -151,16 +131,12 @@ class OpenMeteoRepository implements WeatherRepository {
       'timezone': 'auto',
     });
 
-    print('☀️ Weather API URL: $url');
     final response = await _client.get(url);
 
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
-      print('✅ Weather API response received');
       return data;
     } else {
-      print('❌ Weather API failed: ${response.statusCode}');
-      print('Response: ${response.body}');
       throw Exception('Weather API request failed: ${response.statusCode} - ${response.body}');
     }
   }
@@ -187,8 +163,6 @@ class OpenMeteoRepository implements WeatherRepository {
         'zoom': '10', // City/town level
         'addressdetails': '1',
       });
-
-      print('🗺️ OSM Nominatim API URL: $url');
       
       final response = await _client.get(
         url,
@@ -199,7 +173,6 @@ class OpenMeteoRepository implements WeatherRepository {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('🗺️ OSM response: $data');
         
         final address = data['address'] as Map<String, dynamic>?;
         if (address != null) {
@@ -216,8 +189,6 @@ class OpenMeteoRepository implements WeatherRepository {
           final municipality = address['municipality'] as String?;
           final state = address['state'] as String?;
           final country = address['country'] as String?;
-          
-          print('🏖️ Beach: $beach, Suburb: $suburb, City: $city, State: $state, Country: $country');
           
           if (beach != null && beach.isNotEmpty) {
             parts.add(beach);
@@ -240,15 +211,12 @@ class OpenMeteoRepository implements WeatherRepository {
           
           if (parts.isNotEmpty) {
             final locationName = parts.join(', ');
-            print('✅ OSM location: $locationName');
             return locationName;
           }
         }
-      } else {
-        print('⚠️ OSM API returned: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ OSM geocoding error: $e');
+      // Silently fail and return null - location name is non-critical
     }
     
     return null;
@@ -360,8 +328,6 @@ class OpenMeteoRepository implements WeatherRepository {
         'addressdetails': '1',
         'limit': '10',
       });
-
-      print('🔍 Searching locations: $url');
       
       final response = await _client.get(
         url,
@@ -372,17 +338,14 @@ class OpenMeteoRepository implements WeatherRepository {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        print('✅ Found ${data.length} locations');
         
         return data
             .map((json) => LocationSearchResult.fromJson(json as Map<String, dynamic>))
             .toList();
       } else {
-        print('❌ Search failed: ${response.statusCode}');
         return [];
       }
     } catch (e) {
-      print('❌ Search error: $e');
       return [];
     }
   }

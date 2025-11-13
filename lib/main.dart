@@ -33,8 +33,7 @@ class MyApp extends StatelessWidget {
     // DEV MODE: Set apiKey to null to use cached data only (saves API quota during testing)
     final tideRepository = StormglassTideRepository(
       database: database,
-      apiKey: null, // TEMPORARILY DISABLED to save API quota
-      // apiKey: dotenv.env['STORMGLASS_API_KEY'], // Uncomment when ready to test
+      apiKey: dotenv.env['STORMGLASS_API_KEY'], // ✅ ENABLED for testing
     );
 
     // Set up dependency injection with Provider

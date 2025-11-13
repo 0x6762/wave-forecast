@@ -88,15 +88,14 @@ class OpenMeteoRepository implements WeatherRepository {
     }
     
     try {
-      return await _tideRepository.getTideData(
-        latitude: latitude,
-        longitude: longitude,
-        days: days,
-      );
-    } catch (e) {
-      print('⚠️ Tide data fetch failed: $e');
-      return null;
-    }
+      return await         _tideRepository.getTideData(
+          latitude: latitude,
+          longitude: longitude,
+          days: days,
+        );
+      } catch (e) {
+        return null; // Tide data is optional
+      }
   }
 
   Future<Map<String, dynamic>> _fetchMarineData(

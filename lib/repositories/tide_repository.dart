@@ -34,9 +34,8 @@ class StormglassTideRepository implements TideDataRepository {
     int days = 7,
     double? cacheRadiusKm,
   }) async {
-    // If no API key, return null
+    // If no API key, return null (graceful degradation)
     if (_apiKey == null || _apiKey.isEmpty) {
-      print('⚠️ No Stormglass API key provided - tide data unavailable');
       return null;
     }
 
@@ -52,25 +51,14 @@ class StormglassTideRepository implements TideDataRepository {
       );
 
       if (cached != null) {
-        final distance = _calculateDistance(
-          latitude,
-          longitude,
-          cached.latitude,
-          cached.longitude,
-        );
-        
-        print('✅ Tide cache HIT! Using data from ${distance.toStringAsFixed(1)}km away');
-        print('   Cache valid until: ${cached.validUntil}');
-        
         final data = jsonDecode(cached.dataJson) as Map<String, dynamic>;
         return TideData.fromJson(data);
       }
     } catch (e) {
-      print('⚠️ Error checking tide cache: $e');
+      // Silent cache error - will fallback to API
     }
 
     // Cache miss - fetch from API
-    print('🌊 Tide cache MISS - fetching from Stormglass API...');
     return await _fetchFromApi(latitude, longitude, days);
   }
 
@@ -93,8 +81,6 @@ class StormglassTideRepository implements TideDataRepository {
           'end': end.toIso8601String(),
         },
       );
-
-      print('🌊 Stormglass API URL: $url');
       
       final response = await _client.get(
         url,
@@ -106,22 +92,15 @@ class StormglassTideRepository implements TideDataRepository {
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body) as Map<String, dynamic>;
         final tideData = _parseTideResponse(json, latitude, longitude);
-        
-        print('✅ Tide data received for ${tideData.stationName}');
-        print('   Station: ${tideData.distanceFromRequest.toStringAsFixed(1)}km away');
-        print('   Extremes: ${tideData.extremes.length}');
 
         // Cache the response
         await _cacheData(tideData);
         
         return tideData;
       } else {
-        print('❌ Stormglass API error: ${response.statusCode}');
-        print('   Response: ${response.body}');
         return null;
       }
     } catch (e) {
-      print('❌ Error fetching tide data: $e');
       return null;
     }
   }
@@ -184,10 +163,8 @@ class StormglassTideRepository implements TideDataRepository {
         validUntil: validUntil,
         metadata: 'distance: ${data.distanceFromRequest.toStringAsFixed(1)}km',
       );
-      
-      print('💾 Cached tide data for ${data.stationName}');
     } catch (e) {
-      print('⚠️ Failed to cache tide data: $e');
+      // Silent cache save error - not critical
     }
   }
 
@@ -216,7 +193,6 @@ class StormglassTideRepository implements TideDataRepository {
   @override
   Future<void> clearCache() async {
     await _db.clearCacheByType(_cacheType);
-    print('🗑️ Cleared tide cache');
   }
 
   @override

@@ -290,63 +290,67 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            Builder(
+              builder: (context) {
+                final nextTides = _forecast!.tideData!.getNextTwoTides();
+
+                if (nextTides.isEmpty) {
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: const Text('No upcoming tide data'),
+                    ),
+                  );
+                }
+
+                return Row(
                   children: [
-                    Builder(
-                      builder: (context) {
-                        final nextTides = _forecast!.tideData!
-                            .getNextTwoTides();
-
-                        if (nextTides.isEmpty) {
-                          return const Text('No upcoming tide data');
-                        }
-
-                        return Row(
-                          children: [
-                            // First tide
-                            Expanded(
-                              child: _buildTideExtreme(
-                                nextTides[0].type == TideType.high
-                                    ? 'High Tide'
-                                    : 'Low Tide',
-                                nextTides[0],
-                                nextTides[0].type == TideType.high
-                                    ? Icons.arrow_upward
-                                    : Icons.arrow_downward,
-                                nextTides[0].type == TideType.high
-                                    ? Colors.blue
-                                    : Colors.orange,
+                    // First tide
+                    Expanded(
+                      child: Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: _buildTideExtreme(
+                            nextTides[0].type == TideType.high
+                                ? 'High Tide'
+                                : 'Low Tide',
+                            nextTides[0],
+                            nextTides[0].type == TideType.high
+                                ? Icons.arrow_upward
+                                : Icons.arrow_downward,
+                            nextTides[0].type == TideType.high
+                                ? Colors.blue
+                                : Colors.orange,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Second tide (if available)
+                    Expanded(
+                      child: nextTides.length > 1
+                          ? Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: _buildTideExtreme(
+                                  nextTides[1].type == TideType.high
+                                      ? 'High Tide'
+                                      : 'Low Tide',
+                                  nextTides[1],
+                                  nextTides[1].type == TideType.high
+                                      ? Icons.arrow_upward
+                                      : Icons.arrow_downward,
+                                  nextTides[1].type == TideType.high
+                                      ? Colors.blue
+                                      : Colors.orange,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 16),
-                            // Second tide (if available)
-                            Expanded(
-                              child: nextTides.length > 1
-                                  ? _buildTideExtreme(
-                                      nextTides[1].type == TideType.high
-                                          ? 'High Tide'
-                                          : 'Low Tide',
-                                      nextTides[1],
-                                      nextTides[1].type == TideType.high
-                                          ? Icons.arrow_upward
-                                          : Icons.arrow_downward,
-                                      nextTides[1].type == TideType.high
-                                          ? Colors.blue
-                                          : Colors.orange,
-                                    )
-                                  : const SizedBox(),
-                            ),
-                          ],
-                        );
-                      },
+                            )
+                          : const SizedBox(),
                     ),
                   ],
-                ),
-              ),
+                );
+              },
             ),
             const SizedBox(height: 16),
           ],

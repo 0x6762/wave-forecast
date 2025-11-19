@@ -347,9 +347,9 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
               shape: BoxShape.circle,
             ),
             child: const Icon(
-              Icons.calendar_today,
+              Icons.arrow_forward, // Changed from calendar to arrow
               size: 20,
-              color: Colors.orangeAccent,
+              color: Colors.black87,
             ),
           ),
         ],

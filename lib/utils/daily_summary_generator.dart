@@ -116,20 +116,33 @@ class DailySummaryGenerator {
       
       if (dayConditions.isEmpty) continue;
 
-      // Check morning session (6am - 10am)
-      final morningSession = dayConditions.where((c) => c.timestamp.hour >= 6 && c.timestamp.hour <= 10).toList();
-      if (morningSession.isNotEmpty) {
-        final avgScore = morningSession.map((c) => c.qualityScore).reduce((a,b) => a+b) / morningSession.length;
+      // Find best individual hour for this day
+      SurfConditions? bestHour;
+      int bestHourScore = -1;
+
+      for (final c in dayConditions) {
+        // Skip past hours for "Today"
+        if (i == 0 && c.timestamp.isBefore(now)) continue;
         
-        // If it's a good score (> 60)
-        if (avgScore > 60) {
-          final dayName = i == 0 ? "Today" : i == 1 ? "Tomorrow" : _getDayName(targetDay.weekday);
-          options.add(BetterConditionOption(
-            timeLabel: "$dayName, Morning",
-            chanceLabel: "${avgScore.round()}% quality",
-            timestamp: morningSession.first.timestamp,
-          ));
+        final score = c.getQualityScore(forecast.tideData);
+        if (score > bestHourScore) {
+          bestHourScore = score;
+          bestHour = c;
         }
+      }
+
+      if (bestHour != null && bestHourScore > 50) {
+          final dayName = i == 0 ? "Today" : i == 1 ? "Tomorrow" : _getDayName(targetDay.weekday);
+          
+          final hour = bestHour.timestamp.hour;
+          final period = hour >= 12 ? 'pm' : 'am';
+          final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+
+          options.add(BetterConditionOption(
+            timeLabel: "$dayName, $displayHour$period",
+            chanceLabel: "$bestHourScore% quality",
+            timestamp: bestHour.timestamp,
+          ));
       }
       
       // If we already have enough, stop
@@ -146,16 +159,21 @@ class DailySummaryGenerator {
          if (c.timestamp.isBefore(now)) continue;
          if (c.timestamp.difference(now).inHours > 48) break;
          
-         if (c.qualityScore > bestScore) {
-           bestScore = c.qualityScore;
+         final score = c.getQualityScore(forecast.tideData);
+         if (score > bestScore) {
+           bestScore = score;
            best = c;
          }
        }
        
        if (best != null) {
           final dayName = best.timestamp.day == now.day ? "Today" : "Tomorrow";
+          final hour = best.timestamp.hour;
+          final period = hour >= 12 ? 'pm' : 'am';
+          final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+          
           options.add(BetterConditionOption(
-            timeLabel: "$dayName, ${best.timestamp.hour}h",
+            timeLabel: "$dayName, $displayHour$period",
             chanceLabel: "$bestScore% quality",
             timestamp: best.timestamp,
           ));

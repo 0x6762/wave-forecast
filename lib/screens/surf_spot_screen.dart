@@ -364,75 +364,49 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
             letterSpacing: 1.5,
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
 
-        // Primary Stats (Wave, Wind, Air Temp)
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildDetailItem(
-                    Icons.waves,
-                    "Wave Height",
-                    "${current.waveHeight.toStringAsFixed(1)}m",
-                  ),
-                  const SizedBox(height: 20),
-                  _buildDetailItem(
-                    Icons.waves,
-                    "Swell Period",
-                    "${current.wavePeriod.toStringAsFixed(1)}s",
-                  ),
-                  const SizedBox(height: 20),
-                  _buildDetailItem(
-                    Icons.explore,
-                    "Swell Dir",
-                    _getWindDirection(current.waveDirection),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildDetailItem(
-                    Icons.air,
-                    "Wind Speed",
-                    "${current.windSpeed.round()}km/h",
-                  ),
-                  const SizedBox(height: 20),
-                  _buildDetailItem(
-                    Icons.flag,
-                    "Wind Dir",
-                    _getWindDirection(current.windDirection),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildDetailItem(
-                    Icons.wb_cloudy,
-                    "Air Temp",
-                    "${current.airTemperature.round()}°C",
-                  ),
-                  const SizedBox(height: 20),
-                  _buildDetailItem(
-                    Icons.water_drop,
-                    "Water Temp",
-                    "${current.waterTemperature.round()}°C",
-                  ),
-                ],
-              ),
-            ),
-          ],
+        // Primary Stats - Single column layout
+        _buildDetailItem(
+          Icons.waves,
+          "Wave Height",
+          "${current.waveHeight.toStringAsFixed(1)}m",
+        ),
+        const SizedBox(height: 8),
+        _buildDetailItem(
+          Icons.waves,
+          "Swell Period",
+          "${current.wavePeriod.toStringAsFixed(1)}s",
+        ),
+        const SizedBox(height: 8),
+        _buildDetailItem(
+          Icons.explore,
+          "Swell Dir",
+          _getWindDirection(current.waveDirection),
+        ),
+        const SizedBox(height: 8),
+        _buildDetailItem(
+          Icons.air,
+          "Wind Speed",
+          "${current.windSpeed.round()}km/h",
+        ),
+        const SizedBox(height: 8),
+        _buildDetailItem(
+          Icons.flag,
+          "Wind Dir",
+          _getWindDirection(current.windDirection),
+        ),
+        const SizedBox(height: 8),
+        _buildDetailItem(
+          Icons.wb_cloudy,
+          "Air Temp",
+          "${current.airTemperature.round()}°C",
+        ),
+        const SizedBox(height: 8),
+        _buildDetailItem(
+          Icons.water_drop,
+          "Water Temp",
+          "${current.waterTemperature.round()}°C",
         ),
 
         // Tide Graph
@@ -464,43 +438,46 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        Container(
-          height: 120,
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-          child: CustomPaint(painter: TideGraphPainter(tide: tide)),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            print('Tide graph available width: ${constraints.maxWidth}');
+            return Container(
+              height: 120,
+              width: constraints.maxWidth,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 20),
+              child: CustomPaint(painter: TideGraphPainter(tide: tide)),
+            );
+          },
         ),
       ],
     );
   }
 
   Widget _buildDetailItem(IconData icon, String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Row(
           children: [
             Icon(icon, size: 14, color: Colors.white.withOpacity(0.5)),
-            const SizedBox(width: 6),
+            const SizedBox(width: 8),
             Text(
               label.toUpperCase(),
               style: TextStyle(
                 color: Colors.white.withOpacity(0.5),
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.5,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 6),
         Text(
           value,
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 18,
+            fontSize: 16,
             fontWeight: FontWeight.w600,
-            height: 1.2,
           ),
         ),
       ],
@@ -816,6 +793,19 @@ class TideGraphPainter extends CustomPainter {
           size.height -
           ((extreme.height - minHeight) / heightRange) * (size.height - 20);
 
+      // Helper function to constrain label position within canvas bounds
+      double constrainX(double centerX, double labelWidth) {
+        final left = centerX - labelWidth / 2;
+        final right = centerX + labelWidth / 2;
+
+        if (left < 0) {
+          return labelWidth / 2; // Align to left edge
+        } else if (right > size.width) {
+          return size.width - labelWidth / 2; // Align to right edge
+        }
+        return centerX;
+      }
+
       // Draw type indicator (H/L)
       textPainter.text = TextSpan(
         text: extreme.type == TideType.high ? "H" : "L",
@@ -827,7 +817,8 @@ class TideGraphPainter extends CustomPainter {
       );
       textPainter.layout();
       final typeY = extreme.type == TideType.high ? y - 38 : y + 28;
-      textPainter.paint(canvas, Offset(x - textPainter.width / 2, typeY));
+      final typeX = constrainX(x, textPainter.width);
+      textPainter.paint(canvas, Offset(typeX - textPainter.width / 2, typeY));
 
       // Draw time label
       final timeLabel =
@@ -842,7 +833,11 @@ class TideGraphPainter extends CustomPainter {
       );
       textPainter.layout();
       final timeLabelY = extreme.type == TideType.high ? y - 26 : y + 16;
-      textPainter.paint(canvas, Offset(x - textPainter.width / 2, timeLabelY));
+      final timeX = constrainX(x, textPainter.width);
+      textPainter.paint(
+        canvas,
+        Offset(timeX - textPainter.width / 2, timeLabelY),
+      );
 
       // Draw height label
       final heightLabel = "${extreme.height.toStringAsFixed(1)}m";
@@ -856,9 +851,10 @@ class TideGraphPainter extends CustomPainter {
       );
       textPainter.layout();
       final heightLabelY = extreme.type == TideType.high ? y - 14 : y + 4;
+      final heightX = constrainX(x, textPainter.width);
       textPainter.paint(
         canvas,
-        Offset(x - textPainter.width / 2, heightLabelY),
+        Offset(heightX - textPainter.width / 2, heightLabelY),
       );
     }
   }

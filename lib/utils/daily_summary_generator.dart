@@ -42,7 +42,7 @@ class BetterConditionOption {
 
 class DailySummaryGenerator {
   /// Generates a structured summary for the UI
-  static DailySummary generate(List<SurfConditions> dayConditions) {
+  static DailySummary generate(List<SurfConditions> dayConditions, [SurfConditions? currentConditions]) {
     if (dayConditions.isEmpty) {
       return DailySummary(
         headline: "No Data",
@@ -65,10 +65,13 @@ class DailySummaryGenerator {
     final maxWave = activeConditions.map((c) => c.waveHeight).reduce(max);
     final minWave = activeConditions.map((c) => c.waveHeight).reduce(min);
     final avgWind = activeConditions.map((c) => c.windSpeed).reduce((a, b) => a + b) / activeConditions.length;
-    final windDir = activeConditions.first.windDirection; // Approximate
-    final temp = activeConditions.map((c) => c.airTemperature).reduce(max);
+    
+    // For pills, use current conditions if available, otherwise average/max
+    final displayWindSpeed = currentConditions?.windSpeed ?? avgWind;
+    final displayWindDir = currentConditions?.windDirection ?? activeConditions.first.windDirection;
+    final displayTemp = currentConditions?.airTemperature ?? activeConditions.map((c) => c.airTemperature).reduce(max);
 
-    // Generate Text
+    // Generate Text (Headline logic remains based on Daily Outlook)
     final String headline;
     final String subHeadline;
 
@@ -91,16 +94,18 @@ class DailySummaryGenerator {
     }
 
     // Formatted Labels
-    // Wave: "1-2 m" (Keeping metric as per system, but could toggle)
-    final waveLabel = (maxWave - minWave).abs() < 0.2
-        ? "${maxWave.toStringAsFixed(1)} m"
-        : "${minWave.toStringAsFixed(1)}-${maxWave.toStringAsFixed(1)} m";
+    // Wave
+    final waveLabel = currentConditions != null 
+        ? "${currentConditions.waveHeight.toStringAsFixed(1)} m"
+        : (maxWave - minWave).abs() < 0.2
+            ? "${maxWave.toStringAsFixed(1)} m"
+            : "${minWave.toStringAsFixed(1)}-${maxWave.toStringAsFixed(1)} m";
         
-    // Wind: "SE 12km/h"
-    final windLabel = "${_getCardinalDirection(windDir)} ${avgWind.round()}km/h";
+    // Wind
+    final windLabel = "${_getCardinalDirection(displayWindDir)} ${displayWindSpeed.round()}km/h";
     
-    // Temp: "26°"
-    final tempLabel = "${temp.round()}°";
+    // Temp
+    final tempLabel = "${displayTemp.round()}°";
 
     return DailySummary(
       headline: headline,

@@ -23,6 +23,7 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
   // Layout data
   DailySummary? _todaySummary;
   List<BetterConditionOption> _betterConditions = [];
+  bool _isSummaryExpanded = false;
 
   double _latitude = -23.0165; // Rio
   double _longitude = -43.308;
@@ -50,7 +51,10 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
 
       // Generate summaries
       final todayConditions = forecast.getConditionsForDay(DateTime.now());
-      final summary = DailySummaryGenerator.generate(todayConditions);
+      final summary = DailySummaryGenerator.generate(
+        todayConditions,
+        forecast.currentConditions,
+      );
       final betterConditions = DailySummaryGenerator.findBetterConditions(
         forecast,
       );
@@ -136,7 +140,7 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
 
               // Date Label
               Text(
-                _getWeekdayName(DateTime.now().weekday),
+                "${_getWeekdayName(DateTime.now().weekday)}, ${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}",
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.6),
                   fontSize: 14,
@@ -172,13 +176,57 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
               const SizedBox(height: 32),
 
               // Stats Pills
-              Row(
+              Column(
                 children: [
-                  _buildStatPill(Icons.waves, summary.waveLabel),
-                  const SizedBox(width: 12),
-                  _buildStatPill(Icons.air, summary.windLabel),
-                  const SizedBox(width: 12),
-                  _buildStatPill(Icons.wb_cloudy, summary.tempLabel),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildExpandButton(),
+                        const SizedBox(width: 12),
+                        // Fade out pills when expanded
+                        AnimatedOpacity(
+                          opacity: _isSummaryExpanded ? 0.0 : 1.0,
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeInOutCubicEmphasized,
+                          child: Row(
+                            children: [
+                              _buildStatPill(Icons.waves, summary.waveLabel),
+                              const SizedBox(width: 12),
+                              _buildStatPill(Icons.air, summary.windLabel),
+                              const SizedBox(width: 12),
+                              _buildStatPill(
+                                Icons.wb_cloudy,
+                                summary.tempLabel,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Expandable Details Section
+                  AnimatedCrossFade(
+                    firstChild: const SizedBox(width: double.infinity),
+                    secondChild: Container(
+                      margin: const EdgeInsets.only(top: 24),
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: _buildExpandedDetails(),
+                    ),
+                    crossFadeState: _isSummaryExpanded
+                        ? CrossFadeState.showSecond
+                        : CrossFadeState.showFirst,
+                    duration: const Duration(milliseconds: 500),
+                    firstCurve: Curves.easeInOutCubicEmphasized,
+                    secondCurve: Curves.easeInOutCubicEmphasized,
+                    sizeCurve: Curves.easeInOutCubicEmphasized,
+                  ),
                 ],
               ),
             ],
@@ -218,17 +266,6 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
                 ),
               ],
             ),
-          ),
-        ),
-        // Menu Button
-        Container(
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            color: Color(0xFF2A2A2A),
-          ),
-          child: IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.white70),
-            onPressed: () {}, // Placeholder
           ),
         ),
       ],
@@ -278,6 +315,164 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildExpandButton() {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _isSummaryExpanded = !_isSummaryExpanded;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(
+            0.2,
+          ), // Slightly lighter to indicate interactivity
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
+        ),
+        child: Icon(
+          _isSummaryExpanded ? Icons.expand_less : Icons.expand_more,
+          color: Colors.white,
+          size: 18,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpandedDetails() {
+    if (_forecast == null || _forecast!.currentConditions == null)
+      return const SizedBox();
+
+    final current = _forecast!.currentConditions!;
+    final tide = _forecast!.tideData;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "DETAILED CONDITIONS",
+          style: TextStyle(
+            color: Colors.white70,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.5,
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Primary Stats (Wave, Wind, Air Temp)
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDetailItem(
+                    Icons.waves,
+                    "Wave Height",
+                    "${current.waveHeight.toStringAsFixed(1)}m",
+                  ),
+                  const SizedBox(height: 20),
+                  _buildDetailItem(
+                    Icons.waves,
+                    "Swell Period",
+                    "${current.wavePeriod.toStringAsFixed(1)}s",
+                  ),
+                  const SizedBox(height: 20),
+                  _buildDetailItem(
+                    Icons.explore,
+                    "Swell Dir",
+                    "${current.waveDirection.round()}°",
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDetailItem(
+                    Icons.air,
+                    "Wind Speed",
+                    "${current.windSpeed.round()}km/h",
+                  ),
+                  const SizedBox(height: 20),
+                  _buildDetailItem(
+                    Icons.flag,
+                    "Wind Dir",
+                    "${current.windDirection.round()}° ${_getWindDirection(current.windDirection)}",
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDetailItem(
+                    Icons.wb_cloudy,
+                    "Air Temp",
+                    "${current.airTemperature.round()}°C",
+                  ),
+                  const SizedBox(height: 20),
+                  _buildDetailItem(
+                    Icons.water_drop,
+                    "Water Temp",
+                    "${current.waterTemperature.round()}°C",
+                  ),
+                  const SizedBox(height: 20),
+                  if (tide != null && tide.getNextHighTide() != null)
+                    _buildDetailItem(
+                      Icons.trending_up,
+                      "High Tide",
+                      "${tide.getNextHighTide()!.timestamp.hour}:${tide.getNextHighTide()!.timestamp.minute.toString().padLeft(2, '0')}",
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailItem(IconData icon, String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 14, color: Colors.white.withOpacity(0.5)),
+            const SizedBox(width: 6),
+            Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            height: 1.2,
+          ),
+        ),
+      ],
     );
   }
 
@@ -403,6 +598,19 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
       });
       _loadForecast();
     }
+  }
+
+  String _getWindDirection(double degrees) {
+    // Convert degrees to compass direction
+    if (degrees >= 337.5 || degrees < 22.5) return 'N';
+    if (degrees >= 22.5 && degrees < 67.5) return 'NE';
+    if (degrees >= 67.5 && degrees < 112.5) return 'E';
+    if (degrees >= 112.5 && degrees < 157.5) return 'SE';
+    if (degrees >= 157.5 && degrees < 202.5) return 'S';
+    if (degrees >= 202.5 && degrees < 247.5) return 'SW';
+    if (degrees >= 247.5 && degrees < 292.5) return 'W';
+    if (degrees >= 292.5 && degrees < 337.5) return 'NW';
+    return '';
   }
 
   String _getWeekdayName(int weekday) {

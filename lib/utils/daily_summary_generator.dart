@@ -24,11 +24,19 @@ class BetterConditionOption {
   final String timeLabel;
   final String chanceLabel;
   final DateTime timestamp;
+  final double waveHeight;
+  final double wavePeriod;
+  final double windSpeed;
+  final String? tideType; // 'High', 'Low', 'Mid', etc.
 
   BetterConditionOption({
     required this.timeLabel,
     required this.chanceLabel,
     required this.timestamp,
+    required this.waveHeight,
+    required this.wavePeriod,
+    required this.windSpeed,
+    this.tideType,
   });
 }
 
@@ -124,6 +132,9 @@ class DailySummaryGenerator {
         // Skip past hours for "Today"
         if (i == 0 && c.timestamp.isBefore(now)) continue;
         
+        // Skip non-daylight hours (approx 6am - 6pm)
+        if (c.timestamp.hour < 6 || c.timestamp.hour >= 18) continue;
+        
         final score = c.getQualityScore(forecast.tideData);
         if (score > bestHourScore) {
           bestHourScore = score;
@@ -142,6 +153,11 @@ class DailySummaryGenerator {
             timeLabel: "$dayName, $displayHour$period",
             chanceLabel: "$bestHourScore% quality",
             timestamp: bestHour.timestamp,
+            waveHeight: bestHour.waveHeight,
+            wavePeriod: bestHour.wavePeriod,
+            windSpeed: bestHour.windSpeed,
+            // TODO: Add tide type lookup if needed, for now leaving null or simple
+            tideType: null, 
           ));
       }
       
@@ -158,6 +174,9 @@ class DailySummaryGenerator {
        for (final c in forecast.hourlyConditions) {
          if (c.timestamp.isBefore(now)) continue;
          if (c.timestamp.difference(now).inHours > 48) break;
+         
+         // Skip non-daylight hours (approx 6am - 6pm)
+         if (c.timestamp.hour < 6 || c.timestamp.hour >= 18) continue;
          
          final score = c.getQualityScore(forecast.tideData);
          if (score > bestScore) {
@@ -176,6 +195,10 @@ class DailySummaryGenerator {
             timeLabel: "$dayName, $displayHour$period",
             chanceLabel: "$bestScore% quality",
             timestamp: best.timestamp,
+            waveHeight: best.waveHeight,
+            wavePeriod: best.wavePeriod,
+            windSpeed: best.windSpeed,
+            tideType: null,
           ));
        }
     }

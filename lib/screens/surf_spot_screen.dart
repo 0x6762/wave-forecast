@@ -318,42 +318,74 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                option.timeLabel,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      option.timeLabel,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    Text(
+                      option.chanceLabel,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.blueAccent,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                option.chanceLabel,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.blueAccent,
+                const SizedBox(height: 8),
+
+                // Compact details row
+                Row(
+                  children: [
+                    _buildCompactDetail(
+                      Icons.waves,
+                      "${option.waveHeight.toStringAsFixed(1)}m",
+                    ),
+                    const SizedBox(width: 12),
+                    _buildCompactDetail(
+                      Icons.timer,
+                      "${option.wavePeriod.round()}s",
+                    ),
+                    const SizedBox(width: 12),
+                    _buildCompactDetail(
+                      Icons.air,
+                      "${option.windSpeed.round()}km/h",
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.arrow_forward, // Changed from calendar to arrow
-              size: 20,
-              color: Colors.black87,
+              ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCompactDetail(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: Colors.grey[600]),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.grey[800],
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 

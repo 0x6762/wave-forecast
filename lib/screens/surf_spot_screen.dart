@@ -389,7 +389,7 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
                   _buildDetailItem(
                     Icons.explore,
                     "Swell Dir",
-                    "${current.waveDirection.round()}°",
+                    _getWindDirection(current.waveDirection),
                   ),
                 ],
               ),
@@ -408,7 +408,7 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
                   _buildDetailItem(
                     Icons.flag,
                     "Wind Dir",
-                    "${current.windDirection.round()}° ${_getWindDirection(current.windDirection)}",
+                    _getWindDirection(current.windDirection),
                   ),
                 ],
               ),
@@ -632,16 +632,30 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
   }
 
   String _getWindDirection(double degrees) {
-    // Convert degrees to compass direction
-    if (degrees >= 337.5 || degrees < 22.5) return 'N';
-    if (degrees >= 22.5 && degrees < 67.5) return 'NE';
-    if (degrees >= 67.5 && degrees < 112.5) return 'E';
-    if (degrees >= 112.5 && degrees < 157.5) return 'SE';
-    if (degrees >= 157.5 && degrees < 202.5) return 'S';
-    if (degrees >= 202.5 && degrees < 247.5) return 'SW';
-    if (degrees >= 247.5 && degrees < 292.5) return 'W';
-    if (degrees >= 292.5 && degrees < 337.5) return 'NW';
-    return '';
+    // Convert degrees to 16-point compass direction
+    const directions = [
+      'N',
+      'NNE',
+      'NE',
+      'ENE',
+      'E',
+      'ESE',
+      'SE',
+      'SSE',
+      'S',
+      'SSW',
+      'SW',
+      'WSW',
+      'W',
+      'WNW',
+      'NW',
+      'NNW',
+    ];
+
+    // Each direction covers 22.5 degrees (360 / 16)
+    // Add 11.25 to offset so North is centered at 0/360
+    final index = ((degrees + 11.25) / 22.5).floor() % 16;
+    return directions[index];
   }
 
   String _getWeekdayName(int weekday) {

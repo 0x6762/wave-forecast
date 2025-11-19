@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:math' as math;
 import '../repositories/weather_repository.dart';
 import '../models/surf_forecast.dart';
 import '../models/location_search_result.dart';
+import '../models/tide_data.dart';
 import '../config/app_constants.dart';
 import '../utils/daily_summary_generator.dart';
 import 'location_search_screen.dart';
@@ -210,7 +212,7 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
                   AnimatedCrossFade(
                     firstChild: const SizedBox(width: double.infinity),
                     secondChild: Container(
-                      margin: const EdgeInsets.only(top: 24),
+                      margin: const EdgeInsets.only(top: 24, bottom: 16),
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -283,13 +285,13 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // "Better conditions" Header
+          // "Upcoming Sessions" Header
           Row(
             children: [
               const Icon(Icons.auto_awesome, color: Colors.black87, size: 20),
               const SizedBox(width: 8),
               Text(
-                "Better conditions",
+                "Upcoming Sessions",
                 style: TextStyle(
                   color: Colors.grey[800],
                   fontSize: 16,
@@ -427,17 +429,46 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
                     "Water Temp",
                     "${current.waterTemperature.round()}°C",
                   ),
-                  const SizedBox(height: 20),
-                  if (tide != null && tide.getNextHighTide() != null)
-                    _buildDetailItem(
-                      Icons.trending_up,
-                      "High Tide",
-                      "${tide.getNextHighTide()!.timestamp.hour}:${tide.getNextHighTide()!.timestamp.minute.toString().padLeft(2, '0')}",
-                    ),
                 ],
               ),
             ),
           ],
+        ),
+
+        // Tide Graph
+        if (tide != null && tide.extremes.isNotEmpty) ...[
+          const SizedBox(height: 32),
+          _buildTideGraph(tide),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTideGraph(TideData tide) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.water, size: 14, color: Colors.white.withOpacity(0.5)),
+            const SizedBox(width: 6),
+            Text(
+              "TIDE CHART",
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          height: 120,
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+          child: CustomPaint(painter: TideGraphPainter(tide: tide)),
         ),
       ],
     );
@@ -633,4 +664,191 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
         return '';
     }
   }
+}
+
+/// Custom painter for tide graph
+class TideGraphPainter extends CustomPainter {
+  final TideData tide;
+
+  TideGraphPainter({required this.tide});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final now = DateTime.now();
+
+    // Get tide extremes for today and tomorrow (to draw a smooth curve)
+    final startOfToday = DateTime(now.year, now.month, now.day);
+    final endOfTomorrow = startOfToday.add(const Duration(days: 2));
+
+    final relevantExtremes =
+        tide.extremes
+            .where(
+              (e) =>
+                  e.timestamp.isAfter(startOfToday) &&
+                  e.timestamp.isBefore(endOfTomorrow),
+            )
+            .toList()
+          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+    if (relevantExtremes.length < 2) return;
+
+    // Calculate time range (24 hours from now)
+    final startTime = now;
+    final endTime = now.add(const Duration(hours: 24));
+    final timeRange = endTime.difference(startTime).inMilliseconds;
+
+    // Find min/max heights for scaling
+    final heights = relevantExtremes.map((e) => e.height).toList();
+    final minHeight = heights.reduce(math.min);
+    final maxHeight = heights.reduce(math.max);
+    final heightRange = maxHeight - minHeight;
+    if (heightRange == 0) return;
+
+    // Paint setup
+    final linePaint = Paint()
+      ..color = Colors.blueAccent.withOpacity(0.8)
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Colors.blueAccent.withOpacity(0.3),
+          Colors.blueAccent.withOpacity(0.0),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..style = PaintingStyle.fill;
+
+    // Build path for tide curve
+    final path = Path();
+    final fillPath = Path();
+    bool isFirst = true;
+
+    for (int i = 0; i < relevantExtremes.length - 1; i++) {
+      final current = relevantExtremes[i];
+      final next = relevantExtremes[i + 1];
+
+      // Interpolate points between extremes
+      final steps = 20;
+      for (int j = 0; j <= steps; j++) {
+        final t = j / steps;
+        final interpolatedTime = DateTime.fromMillisecondsSinceEpoch(
+          current.timestamp.millisecondsSinceEpoch +
+              ((next.timestamp.millisecondsSinceEpoch -
+                          current.timestamp.millisecondsSinceEpoch) *
+                      t)
+                  .round(),
+        );
+
+        // Skip if outside our display range
+        if (interpolatedTime.isBefore(startTime) ||
+            interpolatedTime.isAfter(endTime)) {
+          continue;
+        }
+
+        // Use sinusoidal interpolation for tide curve
+        final heightT = (1 - math.cos(t * math.pi)) / 2;
+        final interpolatedHeight =
+            current.height + (next.height - current.height) * heightT;
+
+        // Map to canvas coordinates
+        final x =
+            (interpolatedTime.difference(startTime).inMilliseconds /
+                timeRange) *
+            size.width;
+        final y =
+            size.height -
+            ((interpolatedHeight - minHeight) / heightRange) *
+                (size.height - 20);
+
+        if (isFirst) {
+          path.moveTo(x, y);
+          fillPath.moveTo(x, size.height);
+          fillPath.lineTo(x, y);
+          isFirst = false;
+        } else {
+          path.lineTo(x, y);
+          fillPath.lineTo(x, y);
+        }
+      }
+    }
+
+    // Complete fill path
+    if (!isFirst) {
+      fillPath.lineTo(size.width, size.height);
+      fillPath.close();
+    }
+
+    // Draw fill and line
+    canvas.drawPath(fillPath, fillPaint);
+    canvas.drawPath(path, linePaint);
+
+    // Draw labels for high/low tides
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+
+    for (final extreme in relevantExtremes) {
+      if (extreme.timestamp.isBefore(startTime) ||
+          extreme.timestamp.isAfter(endTime)) {
+        continue;
+      }
+
+      final x =
+          (extreme.timestamp.difference(startTime).inMilliseconds / timeRange) *
+          size.width;
+      final y =
+          size.height -
+          ((extreme.height - minHeight) / heightRange) * (size.height - 20);
+
+      // Draw type indicator (H/L)
+      textPainter.text = TextSpan(
+        text: extreme.type == TideType.high ? "H" : "L",
+        style: TextStyle(
+          color: Colors.blueAccent.withOpacity(0.9),
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      );
+      textPainter.layout();
+      final typeY = extreme.type == TideType.high ? y - 38 : y + 28;
+      textPainter.paint(canvas, Offset(x - textPainter.width / 2, typeY));
+
+      // Draw time label
+      final timeLabel =
+          "${extreme.timestamp.hour}:${extreme.timestamp.minute.toString().padLeft(2, '0')}";
+      textPainter.text = TextSpan(
+        text: timeLabel,
+        style: TextStyle(
+          color: Colors.white.withOpacity(0.7),
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+        ),
+      );
+      textPainter.layout();
+      final timeLabelY = extreme.type == TideType.high ? y - 26 : y + 16;
+      textPainter.paint(canvas, Offset(x - textPainter.width / 2, timeLabelY));
+
+      // Draw height label
+      final heightLabel = "${extreme.height.toStringAsFixed(1)}m";
+      textPainter.text = TextSpan(
+        text: heightLabel,
+        style: TextStyle(
+          color: Colors.white.withOpacity(0.6),
+          fontSize: 9,
+          fontWeight: FontWeight.w500,
+        ),
+      );
+      textPainter.layout();
+      final heightLabelY = extreme.type == TideType.high ? y - 14 : y + 4;
+      textPainter.paint(
+        canvas,
+        Offset(x - textPainter.width / 2, heightLabelY),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

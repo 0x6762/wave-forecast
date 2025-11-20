@@ -8,6 +8,7 @@ import '../models/tide_data.dart';
 import '../config/app_constants.dart';
 import '../utils/daily_summary_generator.dart';
 import 'location_search_screen.dart';
+import 'seven_day_forecast_screen.dart';
 
 class SurfSpotScreen extends StatefulWidget {
   const SurfSpotScreen({super.key});
@@ -303,10 +304,13 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
 
           const SizedBox(height: 16),
 
-          // Suggestions List
+          // Suggestions List (limited to 2)
           ..._betterConditions.map(
             (option) => _buildBetterConditionCard(option),
           ),
+
+          // "See 7-day forecast" card
+          _buildSeeForecastCard(),
 
           if (_betterConditions.isEmpty)
             const Padding(
@@ -589,6 +593,51 @@ class _SurfSpotScreenState extends State<SurfSpotScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSeeForecastCard() {
+    return GestureDetector(
+      onTap: () {
+        // TODO: Navigate to 7-day forecast screen
+        if (_forecast != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  SevenDayForecastScreen(forecast: _forecast!),
+            ),
+          );
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE8E8E8),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.calendar_month, color: Colors.grey[700], size: 20),
+                const SizedBox(width: 12),
+                Text(
+                  "See 7-day forecast",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[800],
+                  ),
+                ),
+              ],
+            ),
+            Icon(Icons.arrow_forward_ios, color: Colors.grey[600], size: 16),
+          ],
+        ),
+      ),
     );
   }
 

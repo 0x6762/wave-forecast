@@ -167,7 +167,7 @@ class DailySummaryGenerator {
       }
       
       // If we already have enough, stop
-      if (options.length >= 3) break;
+      if (options.length >= 2) break;
     }
     
     // Fallback if no "Good" days found, just show the best available
